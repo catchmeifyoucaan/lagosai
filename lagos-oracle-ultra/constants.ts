@@ -24,7 +24,7 @@ export const INITIAL_MESSAGES_WELCOME = {
   model: 'Lagos Oracle System'
 };
 
-export const GEMINI_MODEL_NAME = 'gemini-2.5-pro';
+export const GEMINI_MODEL_NAME = 'gemini-2.5-flash';
 export const OPENAI_CHAT_MODEL = 'gpt-4o';
 export const OPENAI_IMAGE_MODEL = 'dall-e-3';
 export const CLAUDE_MODEL_NAME = 'claude-3-sonnet-20240229';
