@@ -31,7 +31,7 @@ export const CLAUDE_MODEL_NAME = 'claude-3-sonnet-20240229';
 
 export const DEFAULT_PERSONA_KEY: 'default' = 'default';
 
-export const PERSONAS: Record<PersonaKey | 'default', PersonaInfo> = {
+export const DEFAULT_PERSONAS: Record<PersonaKey | 'default', PersonaInfo> = {
   'default': {
     name: 'Lagos Oracle (Default)',
     icon: '🌟',
