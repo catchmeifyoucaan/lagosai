@@ -1,6 +1,6 @@
 
-import React, { useRef } from 'react';
-import { Send, Mic, MicOff } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { SendHorizonal, Mic, MicOff } from 'lucide-react';
 import { ThemeColors } from '../types';
 
 interface ChatInputProps {
@@ -24,60 +24,69 @@ const ChatInput: React.FC<ChatInputProps> = ({
   handleSend,
   startListening
 }) => {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [input]);
 
   const onSend = () => {
     if (input.trim() && !isTyping) {
       handleSend();
     }
   };
-  
+
   const onMicClick = () => {
     if (recognitionAvailable && !isListening) {
       startListening();
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      onSend();
+    }
+  };
+
   return (
-    <div className={`${theme.card} border-t p-3 md:p-4 sticky bottom-0 shadow- ऊपर-md`}> {/* Custom shadow for top */}
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center space-x-2">
+    <div className={`bg-transparent p-4 sticky bottom-0`}>
+      <div className="max-w-3xl mx-auto">
+        <div className={`relative flex items-center ${theme.card} border dark:border-gray-600 rounded-2xl shadow-lg`}>
           <button
             onClick={onMicClick}
             disabled={!recognitionAvailable || isListening}
             title={recognitionAvailable ? (isListening ? "Listening..." : "Voice Input") : "Voice input not available"}
-            className={`p-3 rounded-xl transition-all duration-200
+            className={`p-3 rounded-full transition-all duration-200
               ${isListening ? 'bg-red-500 text-white animate-pulse' :
-              `${theme.muted} ${recognitionAvailable ? 'hover:text-cyan-400 hover:bg-cyan-500/10' : 'opacity-50 cursor-not-allowed'}`}
+              `${theme.muted} ${recognitionAvailable ? 'hover:text-cyan-400' : 'opacity-50 cursor-not-allowed'}`}
             `}
           >
-            {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            <Mic className="w-5 h-5" />
           </button>
 
-          <div className="flex-1 relative">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && onSend()}
-              placeholder="Ask Lagos Oracle anything... (e.g., 'Paint Victoria Island sunset')"
-              className={`w-full px-4 py-3 rounded-xl border ${theme.input}
-                         focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400/80
-                         transition-colors duration-200 placeholder-gray-500 dark:placeholder-gray-400/70`}
-              disabled={isTyping}
-            />
-          </div>
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask Lagos Oracle..."
+            className={`w-full max-h-48 bg-transparent p-3 resize-none border-none focus:ring-0 ${theme.text} placeholder-gray-500 dark:placeholder-gray-400`}
+            rows={1}
+            disabled={isTyping}
+          />
 
           <button
             onClick={onSend}
             disabled={!input.trim() || isTyping}
             title="Send Message"
-            className="bg-gradient-to-r from-cyan-400 to-purple-500 text-white p-3 rounded-xl
-                       hover:shadow-lg hover:from-cyan-500 hover:to-purple-600
-                       transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none"
+            className="p-3 mr-2 rounded-full transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed
+                       text-white bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-500"
           >
-            <Send className="w-5 h-5" />
+            <SendHorizonal className="w-5 h-5" />
           </button>
         </div>
       </div>

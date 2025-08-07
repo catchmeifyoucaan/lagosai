@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Message, AIModelKey, ImageStyleKey, ApiKeys, ApiStatus, ThemeColors, AIServiceResponse, ImageResult, PersonaKey, ImagePart } from './types';
-import { AI_MODELS, IMAGE_STYLES, INITIAL_MESSAGES_WELCOME, OPENAI_CHAT_MODEL, OPENAI_IMAGE_MODEL, CLAUDE_MODEL_NAME, PERSONAS, DEFAULT_PERSONA_KEY, GEMINI_MODEL_NAME } from './constants';
+import { Message, AIModelKey, ImageStyleKey, ApiKeys, ApiStatus, ThemeColors, AIServiceResponse, ImageResult, PersonaKey, ImagePart, PersonaInfo } from './types';
+import { AI_MODELS, IMAGE_STYLES, INITIAL_MESSAGES_WELCOME, OPENAI_CHAT_MODEL, OPENAI_IMAGE_MODEL, CLAUDE_MODEL_NAME, DEFAULT_PERSONAS, DEFAULT_PERSONA_KEY, GEMINI_MODEL_NAME } from './constants';
 import { initializeGeminiClient, isGeminiClientInitialized, generateGeminiClientResponse, generateGeminiClientResponseStream } from './services/geminiService';
 
 import Header from './components/Header';
@@ -10,6 +10,7 @@ import ChatWindow from './components/ChatWindow';
 import ChatInput from './components/ChatInput';
 import PersonaSelector from './components/PersonaSelector';
 import VisionGuideOverlay from './components/VisionGuideOverlay';
+import PersonaManager from './components/PersonaManager';
 
 const getEnvVar = (key: string): string | undefined => {
   const prefixes = ['REACT_APP_', 'VITE_'];
@@ -38,6 +39,7 @@ const LOCAL_STORAGE_API_KEYS = 'lagosOracleApiKeys_v2';
 const LOCAL_STORAGE_DARK_MODE = 'darkModeLagosOracle';
 const LOCAL_STORAGE_SOUND_ENABLED = 'soundEnabledLagosOracle';
 const LOCAL_STORAGE_SELECTED_PERSONA = 'selectedPersonaLagosOracle_v1';
+const LOCAL_STORAGE_CUSTOM_PERSONAS = 'customPersonasLagosOracle_v1';
 
 
 const App: React.FC = () => {
@@ -71,14 +73,45 @@ const App: React.FC = () => {
 
   const [imageStyle, setImageStyle] = useState<ImageStyleKey>('photorealistic');
 
-  const [selectedPersonaKey, setSelectedPersonaKey] = useState<PersonaKey | 'default'>(() => {
+  const [personas, setPersonas] = useState<Record<string, PersonaInfo>>(() => {
     try {
-        const savedPersona = localStorage.getItem(LOCAL_STORAGE_SELECTED_PERSONA) as PersonaKey | 'default' | null;
-        return savedPersona && PERSONAS[savedPersona] ? savedPersona : DEFAULT_PERSONA_KEY;
+      const savedCustomPersonasString = localStorage.getItem(LOCAL_STORAGE_CUSTOM_PERSONAS);
+      const customPersonas = savedCustomPersonasString ? JSON.parse(savedCustomPersonasString) : {};
+      return { ...DEFAULT_PERSONAS, ...customPersonas };
+    } catch (error) {
+      console.error("Failed to load custom personas from localStorage.", error);
+      return { ...DEFAULT_PERSONAS };
+    }
+  });
+
+  const [selectedPersonaKey, setSelectedPersonaKey] = useState<string>(() => {
+    try {
+        const savedPersona = localStorage.getItem(LOCAL_STORAGE_SELECTED_PERSONA) as string | null;
+        return savedPersona && personas[savedPersona] ? savedPersona : DEFAULT_PERSONA_KEY;
     } catch { return DEFAULT_PERSONA_KEY; }
   });
+
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
+  const [showPersonaManager, setShowPersonaManager] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleSavePersona = (persona: PersonaInfo, keyToEdit?: string) => {
+    const key = keyToEdit || `custom_${Date.now()}`;
+    const newPersonas = { ...personas, [key]: persona };
+    setPersonas(newPersonas);
+    if (!keyToEdit) {
+      setSelectedPersonaKey(key); // Select new persona immediately
+    }
+  };
+
+  const handleDeletePersona = (key: string) => {
+    const newPersonas = { ...personas };
+    delete newPersonas[key];
+    setPersonas(newPersonas);
+    if (selectedPersonaKey === key) {
+      setSelectedPersonaKey(DEFAULT_PERSONA_KEY); // Revert to default if deleted
+    }
+  };
 
   // Vision Guide State
   const [visionGuideActive, setVisionGuideActive] = useState(false);
@@ -134,6 +167,17 @@ const App: React.FC = () => {
   }, [selectedPersonaKey]);
 
   useEffect(() => {
+    try {
+      const customPersonas = Object.fromEntries(
+        Object.entries(personas).filter(([key]) => !DEFAULT_PERSONAS[key as PersonaKey | 'default'])
+      );
+      localStorage.setItem(LOCAL_STORAGE_CUSTOM_PERSONAS, JSON.stringify(customPersonas));
+    } catch (e) {
+      console.error("Failed to save custom personas to localStorage", e);
+    }
+  }, [personas]);
+
+  useEffect(() => {
     try { localStorage.setItem(LOCAL_STORAGE_API_KEYS, JSON.stringify(apiKeys)); } catch(e){ console.error("Failed to save API keys to localStorage", e)}
 
     const geminiInitialized = initializeGeminiClient(apiKeys.gemini);
@@ -176,7 +220,7 @@ const App: React.FC = () => {
        baseInstruction += ` Strive for engaging and comprehensive answers. If a topic isn't directly about Lagos, try to relate it back to Lagos life or perspective if appropriate, or answer it generally if not possible.`;
     }
 
-    const personaInfo = PERSONAS[currentPersonaKey] || PERSONAS[DEFAULT_PERSONA_KEY];
+    const personaInfo = personas[currentPersonaKey] || personas[DEFAULT_PERSONA_KEY];
     if (queryType !== 'vision_guide' && personaInfo && personaInfo.systemPromptModifier) { // Persona only applies if not vision guide
       baseInstruction += ` ${personaInfo.systemPromptModifier}`;
     }
@@ -256,7 +300,7 @@ const App: React.FC = () => {
         if (!isGeminiClientInitialized()) throw new Error("Gemini API not configured. Check API key in settings.");
         const systemInstructionString = getSystemPrompt(detectQueryType(query), currentPersonaKey);
         const content = await generateGeminiClientResponse(query, systemInstructionString);
-        return { content, model: `${AI_MODELS.gemini.name} (${PERSONAS[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
+        return { content, model: `${AI_MODELS.gemini.name} (${personas[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
     }
 
     const queryType = detectQueryType(query);
@@ -284,7 +328,7 @@ const App: React.FC = () => {
         if (typeof messageContent !== 'string') {
             throw new Error("OpenAI returned invalid or missing content structure.");
         }
-        return { content: messageContent, model: `${AI_MODELS.openai.name} (${PERSONAS[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
+        return { content: messageContent, model: `${AI_MODELS.openai.name} (${personas[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
       }
 
       if (aiModelKey === 'claude') {
@@ -312,7 +356,7 @@ const App: React.FC = () => {
          if (typeof textContent !== 'string') {
             throw new Error("Claude returned invalid or missing content structure.");
         }
-        return { content: textContent, model: `${AI_MODELS.claude.name} (${PERSONAS[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
+        return { content: textContent, model: `${AI_MODELS.claude.name} (${personas[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
       }
       throw new Error(`AI Model ${aiModelKey} not supported or not properly configured.`);
     } catch (error) {
@@ -320,7 +364,7 @@ const App: React.FC = () => {
       const modelNameForError = AI_MODELS[aiModelKey]?.name || 'Selected AI';
       return {
         content: getDemoResponse(query, aiModelKey, error instanceof Error ? error.message : String(error)),
-        model: `${modelNameForError} (${PERSONAS[currentPersonaKey].name.split('(')[0].trim()})`,
+        model: `${modelNameForError} (${personas[currentPersonaKey].name.split('(')[0].trim()})`,
         success: false
       };
     }
@@ -364,7 +408,7 @@ const App: React.FC = () => {
   };
 
   const getDemoResponse = (query: string, modelKey: AIModelKey, errorMessage?: string): string => {
-    const personaName = PERSONAS[selectedPersonaKey]?.name.split('(')[0].trim() || "Oracle";
+    const personaName = personas[selectedPersonaKey]?.name.split('(')[0].trim() || "Oracle";
     const modelName = AI_MODELS[modelKey]?.name || "The AI";
 
     let responseContent = `Ah, my apologies! It seems I couldn't process your request using **${modelName} (${personaName})** at the moment.`;
@@ -647,7 +691,7 @@ const App: React.FC = () => {
     }
 
     const isVisualQuery = detectQueryType(query) === 'visual';
-    const currentPersona = PERSONAS[selectedPersonaKey] || PERSONAS[DEFAULT_PERSONA_KEY];
+    const currentPersona = personas[selectedPersonaKey] || personas[DEFAULT_PERSONA_KEY];
     const modelDisplayName = `${AI_MODELS[aiToUse]?.name || 'AI'} (${currentPersona.name.split('(')[0].trim()})`;
 
     if (aiToUse === 'gemini') {
@@ -780,19 +824,19 @@ const App: React.FC = () => {
 
 
   const themeColors: ThemeColors = darkMode ? {
-    bg: 'bg-slate-900',
-    card: 'bg-slate-800/70 backdrop-blur-md border-slate-700/50',
-    text: 'text-slate-100',
-    muted: 'text-slate-400',
-    input: 'bg-slate-700/50 border-slate-600/50 text-slate-50 placeholder-slate-400/70',
+    bg: 'bg-gray-900',
+    card: 'bg-gray-800/80 backdrop-blur-md border-gray-700/50',
+    text: 'text-gray-100',
+    muted: 'text-gray-400',
+    input: 'bg-gray-700/50 border-gray-600/50 text-gray-50 placeholder-gray-400/70',
     primaryAccent: 'text-cyan-400',
     secondaryAccent: 'text-purple-400',
   } : {
-    bg: 'bg-slate-100',
-    card: 'bg-white/80 backdrop-blur-md border-slate-200/70',
-    text: 'text-slate-800',
-    muted: 'text-slate-500',
-    input: 'bg-white/70 border-slate-300/70 text-slate-900 placeholder-slate-500/70',
+    bg: 'bg-white',
+    card: 'bg-gray-100/80 backdrop-blur-md border-gray-200/70',
+    text: 'text-gray-800',
+    muted: 'text-gray-500',
+    input: 'bg-white/70 border-gray-300/70 text-gray-900 placeholder-gray-500/70',
     primaryAccent: 'text-cyan-600',
     secondaryAccent: 'text-purple-600',
   };
@@ -801,6 +845,7 @@ const App: React.FC = () => {
     <div className={`flex flex-col h-screen ${themeColors.bg} ${themeColors.text} transition-colors duration-300 font-sans`}>
       <Header
         theme={themeColors}
+        personas={personas}
         soundEnabled={soundEnabled}
         darkMode={darkMode}
         showSettings={showSettings}
@@ -836,9 +881,24 @@ const App: React.FC = () => {
       {showPersonaSelector && (
         <PersonaSelector
           theme={themeColors}
+          personas={personas}
           selectedPersonaKey={selectedPersonaKey}
           onSelectPersona={setSelectedPersonaKey}
           onClose={() => setShowPersonaSelector(false)}
+          onOpenPersonaManager={() => {
+            setShowPersonaManager(true);
+            setShowPersonaSelector(false);
+          }}
+        />
+      )}
+
+      {showPersonaManager && (
+        <PersonaManager
+          theme={themeColors}
+          personas={personas}
+          onClose={() => setShowPersonaManager(false)}
+          onSave={handleSavePersona}
+          onDelete={handleDeletePersona}
         />
       )}
 
@@ -852,7 +912,7 @@ const App: React.FC = () => {
         />
       )}
 
-      <ChatWindow messages={messages} isTyping={isTyping} theme={themeColors} darkMode={darkMode}/>
+      <ChatWindow messages={messages} isTyping={isTyping} theme={themeColors} darkMode={darkMode} personas={personas} />
 
       <ChatInput
         input={input}

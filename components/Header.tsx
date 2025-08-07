@@ -1,28 +1,30 @@
 
 import React from 'react';
-import { Settings, Volume2, VolumeX, Sun, Moon, Download, Sparkles, Eye, Camera, Users, Drama } from 'lucide-react'; // Added Drama for Persona
-import { ThemeColors, AIModelKey, AIModelInfo, PersonaKey } from '../types';
-import { AI_MODELS, PERSONAS, DEFAULT_PERSONA_KEY } from '../constants';
+import { Settings, Volume2, VolumeX, Sun, Moon, Download, Sparkles, Eye, Drama } from 'lucide-react';
+import { ThemeColors, AIModelKey, PersonaInfo } from '../types';
+import { AI_MODELS, DEFAULT_PERSONA_KEY } from '../constants';
 
 interface HeaderProps {
   theme: ThemeColors;
+  personas: Record<string, PersonaInfo>;
   soundEnabled: boolean;
   darkMode: boolean;
   showSettings: boolean;
   selectedAI: AIModelKey;
-  selectedPersonaKey: PersonaKey | 'default';
+  selectedPersonaKey: string;
   showPersonaSelector: boolean;
-  visionGuideActive: boolean; // New prop
+  visionGuideActive: boolean;
   toggleSound: () => void;
   toggleDarkMode: () => void;
   exportConversation: () => void;
   toggleSettings: () => void;
   togglePersonaSelector: () => void;
-  toggleVisionGuideMode: () => void; // New prop
+  toggleVisionGuideMode: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
   theme,
+  personas,
   soundEnabled,
   darkMode,
   showSettings,
@@ -37,68 +39,48 @@ const Header: React.FC<HeaderProps> = ({
   togglePersonaSelector,
   toggleVisionGuideMode
 }) => {
-  const currentAIModelInfo = AI_MODELS[selectedAI] || AI_MODELS['auto'];
-  const currentPersonaInfo = PERSONAS[selectedPersonaKey] || PERSONAS[DEFAULT_PERSONA_KEY];
+  const currentPersonaInfo = personas[selectedPersonaKey] || personas[DEFAULT_PERSONA_KEY];
 
   return (
-    <div className={`${theme.card} border-b p-3 md:p-4 sticky top-0 z-50 shadow-sm`}>
-      <div className="max-w-6xl mx-auto flex items-center justify-between">
-        <div className="flex items-center space-x-2 md:space-x-3">
-          <div className="relative">
-            <div className="w-10 h-10 bg-gradient-to-r from-cyan-400 to-purple-400 rounded-full flex items-center justify-center shadow-md">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse border-2 border-slate-900 dark:border-white"></div>
+    <div className={`border-b dark:border-gray-700 p-3 sticky top-0 z-50 ${theme.card}`}>
+      <div className="max-w-3xl mx-auto flex items-center justify-between">
+        {/* Left Side: Title and Persona */}
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full flex items-center justify-center shadow-md">
+            <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg md:text-xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-              Lagos Oracle Ultra
+            <h1 className="text-lg font-bold text-gray-800 dark:text-gray-100">
+              Lagos Oracle
             </h1>
-            <div className="flex items-center space-x-1.5 text-xs">
-              <Camera className="w-3 h-3 text-pink-400" />
-              <span className={`${currentAIModelInfo.color} font-medium`}>
-                {currentAIModelInfo.icon} {currentAIModelInfo.name}
-              </span>
-              <span className="text-gray-400">|</span>
-              <span className={`${currentPersonaInfo.color || theme.text} font-medium flex items-center`}>
-                {currentPersonaInfo.icon}
-                <span className="ml-1 hidden sm:inline">{currentPersonaInfo.name.split('(')[0].trim()}</span>
-              </span>
-            </div>
+            <span className={`text-xs font-medium flex items-center ${currentPersonaInfo.color || theme.text}`}>
+              {currentPersonaInfo.icon}
+              <span className="ml-1">{currentPersonaInfo.name.split('(')[0].trim()}</span>
+            </span>
           </div>
         </div>
         
-        <div className="flex items-center space-x-1 md:space-x-2">
-           <button
-            onClick={toggleVisionGuideMode}
-            title={visionGuideActive ? "Stop Vision Guide" : "Activate Vision Guide"}
-            className={`p-2 rounded-lg transition-colors duration-200 ${visionGuideActive ? `${theme.primaryAccent} ${theme.primaryAccent.replace('text-','bg-')}/10` : `${theme.muted} hover:text-green-500 hover:bg-green-500/10`}`}
-            aria-pressed={visionGuideActive}
-            >
-            <Eye className="w-4 h-4 md:w-5 md:h-5" />
-          </button>
+        {/* Right Side: Action Buttons */}
+        <div className="flex items-center space-x-1">
           <button
             onClick={togglePersonaSelector}
             title="Select Persona"
-            className={`p-2 rounded-lg transition-colors duration-200 ${showPersonaSelector ? `${PERSONAS[selectedPersonaKey]?.color || theme.primaryAccent} ${(PERSONAS[selectedPersonaKey]?.color || theme.primaryAccent).replace('text-','bg-')}/10` : `${theme.muted} hover:text-yellow-500 hover:bg-yellow-500/10`}`}
-            >
-            <Drama className="w-4 h-4 md:w-5 md:h-5" /> {/* Changed from Users to Drama */}
+            className={`p-2 rounded-full transition-colors duration-200 ${showPersonaSelector ? `${currentPersonaInfo.color || theme.primaryAccent} ${(currentPersonaInfo.color || theme.primaryAccent).replace('text-','bg-')}/20` : `${theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}`}
+          >
+            <Drama className="w-5 h-5" />
           </button>
-          <button onClick={toggleSound} title={soundEnabled ? "Mute" : "Unmute"}
-            className={`p-2 rounded-lg transition-colors duration-200 ${soundEnabled ? 'text-green-400 hover:bg-green-400/10' : `${theme.muted} hover:text-gray-500 hover:bg-gray-500/10`}`}>
-            {soundEnabled ? <Volume2 className="w-4 h-4 md:w-5 md:h-5" /> : <VolumeX className="w-4 h-4 md:w-5 md:h-5" />}
-          </button>
-          <button onClick={toggleDarkMode} title={darkMode ? "Light Mode" : "Dark Mode"}
-            className={`p-2 rounded-lg ${theme.muted} hover:text-yellow-400 dark:hover:text-yellow-300 hover:bg-yellow-400/10 transition-colors duration-200`}>
-            {darkMode ? <Sun className="w-4 h-4 md:w-5 md:h-5" /> : <Moon className="w-4 h-4 md:w-5 md:h-5" />}
-          </button>
-          <button onClick={exportConversation} title="Export Conversation"
-            className={`p-2 rounded-lg ${theme.muted} hover:text-blue-400 hover:bg-blue-400/10 transition-colors duration-200`}>
-            <Download className="w-4 h-4 md:w-5 md:h-5" />
+          <button
+            onClick={toggleVisionGuideMode}
+            title={visionGuideActive ? "Stop Vision Guide" : "Activate Vision Guide"}
+            className={`p-2 rounded-full transition-colors duration-200 ${visionGuideActive ? `text-green-500 bg-green-500/20` : `${theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}`}
+            aria-pressed={visionGuideActive}
+          >
+            <Eye className="w-5 h-5" />
           </button>
           <button onClick={toggleSettings} title="Settings"
-            className={`p-2 rounded-lg transition-colors duration-200 ${showSettings ? 'text-cyan-400 bg-cyan-400/10' : `${theme.muted} hover:text-cyan-400 hover:bg-cyan-400/10`}`}>
-            <Settings className="w-4 h-4 md:w-5 md:h-5" />
+            className={`p-2 rounded-full transition-colors duration-200 ${showSettings ? `text-cyan-500 bg-cyan-500/20` : `${theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}`}
+          >
+            <Settings className="w-5 h-5" />
           </button>
         </div>
       </div>

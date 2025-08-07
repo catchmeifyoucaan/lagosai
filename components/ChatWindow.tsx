@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { Bot, User, AlertTriangle, ImageOff, Copy, Check } from 'lucide-react';
-import { Message as MessageType, ThemeColors } from '../types';
+import { Message as MessageType, ThemeColors, PersonaInfo } from '../types';
 import { marked } from 'marked';
 
 marked.setOptions({
@@ -13,75 +13,95 @@ interface MessageProps {
   message: MessageType;
   theme: ThemeColors;
   darkMode: boolean;
+  personas: Record<string, PersonaInfo>;
 }
 
-const Message: React.FC<MessageProps> = ({ message, theme, darkMode }) => {
+const Avatar: React.FC<{
+  persona?: PersonaInfo;
+  isUser?: boolean;
+  isError?: boolean;
+}> = ({ persona, isUser, isError }) => {
+  const baseClasses = "w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white";
+
+  if (isUser) {
+    return (
+      <div className={`${baseClasses} bg-cyan-500`}>
+        <User className="w-5 h-5" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+        <div className={`${baseClasses} bg-red-500`}>
+            <AlertTriangle className="w-5 h-5" />
+        </div>
+    );
+  }
+
+  if (persona?.icon?.startsWith('http')) {
+    return <img src={persona.icon} alt={persona.name} className="w-8 h-8 rounded-full object-cover" />;
+  }
+
+  const personaColor = persona?.color ? persona.color.replace('text-', 'bg-').replace('-400', '-500') : 'bg-purple-500';
+
+  return (
+    <div className={`${baseClasses} ${personaColor}`}>
+      {persona?.icon && !persona.icon.startsWith('http') ? (
+        <span className="text-xl">{persona.icon}</span>
+      ) : (
+        <Bot className="w-5 h-5" />
+      )}
+    </div>
+  );
+};
+
+
+const Message: React.FC<MessageProps> = ({ message, theme, darkMode, personas }) => {
   const [copied, setCopied] = useState(false);
-  // Ensure message.content is always a string before parsing
   const htmlContent = marked.parse(typeof message.content === 'string' ? message.content : '*Error: Invalid message content*');
 
   const handleCopy = () => {
-    if (typeof message.content !== 'string') return; // Don't copy if content isn't string
+    if (typeof message.content !== 'string') return;
     navigator.clipboard.writeText(message.content).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    }).catch(err => {
-      console.error('Failed to copy text: ', err);
-    });
+    }).catch(err => console.error('Failed to copy text: ', err));
   };
 
-  const isErrorMood = message.mood === 'error';
-  const isDemoMood = message.mood === 'demo' && !isErrorMood; // Demo shouldn't override error
+  const isError = message.mood === 'error';
+  const currentPersona = message.personaKey ? personas[message.personaKey] : undefined;
 
-  const oracleCardBaseStyle = `${theme.card} border ${darkMode ? 'border-purple-500/30' : 'border-purple-200/50'}`;
-  const oracleCardErrorStyle = `bg-red-500/10 border-red-500/40 dark:bg-red-700/20 dark:border-red-600/50`;
-  const oracleCardDemoStyle = `bg-yellow-400/10 border-yellow-500/40 dark:bg-yellow-600/20 dark:border-yellow-500/50`;
+  const messageContainerClasses = `group flex items-start gap-3 my-4 relative`;
+  const messageBubbleClasses = `relative rounded-xl px-4 py-3 shadow-md max-w-2xl`;
 
-  let oracleCardStyle = oracleCardBaseStyle;
-  if (isErrorMood) {
-    oracleCardStyle = oracleCardErrorStyle;
-  } else if (isDemoMood) {
-    oracleCardStyle = oracleCardDemoStyle;
+  if (message.type === 'user') {
+    return (
+      <div className={`${messageContainerClasses} justify-end`}>
+        <div className={`${messageBubbleClasses} bg-cyan-600 text-white`}>
+          <div className="prose prose-sm max-w-none prose-invert prose-p:my-1" dangerouslySetInnerHTML={{ __html: htmlContent }} />
+        </div>
+        <Avatar isUser />
+      </div>
+    );
   }
 
-
+  // Oracle Message
   return (
-    <div className={`group flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} relative mb-1`}>
-      <div className={`max-w-2xl md:max-w-3xl lg:max-w-4xl shadow-md ${
-        message.type === 'user' ? 
-        'bg-cyan-500 dark:bg-cyan-600 text-white rounded-t-xl rounded-bl-xl' :
-        `${oracleCardStyle} rounded-t-xl rounded-br-xl`
-      } p-3 md:p-4`}>
-        <div className="flex items-start space-x-3">
-          {message.type === 'oracle' && (
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white ${
-              isErrorMood ? 'bg-red-500' : (isDemoMood ? 'bg-yellow-500' : 'bg-gradient-to-br from-purple-500 to-pink-500')
-            }`}>
-              {isErrorMood ? <AlertTriangle className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            {message.type === 'oracle' && message.model && (
-              <div className={`flex items-center space-x-2 text-xs mb-1.5 ${
-                isErrorMood ? (darkMode ? 'text-red-300 font-semibold' : 'text-red-700 font-semibold') :
-                (isDemoMood ? (darkMode ? 'text-yellow-300' : 'text-yellow-700') : theme.muted)
-              }`}>
-                <span>{message.model}</span>
-                {message.image?.success && <span className="text-pink-400">🖼️ Image</span>}
+    <div className={messageContainerClasses}>
+      <Avatar persona={currentPersona} isError={isError} />
+      <div className="flex flex-col">
+        <div className={`${messageBubbleClasses} ${isError ? 'bg-red-100 dark:bg-red-900/40' : theme.card}`}>
+            {message.model && (
+              <div className={`text-xs mb-1.5 font-semibold ${isError ? 'text-red-600 dark:text-red-300' : theme.muted}`}>
+                {message.model}
               </div>
             )}
-            <div className={`prose prose-sm max-w-none prose-p:my-1 prose-strong:font-semibold
-                            ${theme.text}
-                            ${message.type === 'user' ? 'prose-invert' : ''}
-                            ${isErrorMood ? (darkMode ? 'prose-p:text-red-200 prose-strong:text-red-100' : 'prose-p:text-red-800 prose-strong:text-red-900') : ''}
-                          `}
-                 dangerouslySetInnerHTML={{ __html: htmlContent }} />
-            
+            <div className={`prose prose-sm max-w-none ${theme.text}`} dangerouslySetInnerHTML={{ __html: htmlContent }} />
             {message.image && (
               <div className="mt-3">
                 {message.image.success ? (
-                  <img src={message.image.imageUrl} alt="Generated by AI" 
-                    className="rounded-lg max-w-xs md:max-w-sm h-auto shadow-lg border border-gray-300 dark:border-gray-600" />
+                  <img src={message.image.imageUrl} alt="Generated by AI" className="rounded-lg max-w-xs md:max-w-sm h-auto shadow-lg border dark:border-gray-600" />
                 ) : (
                   <div className={`p-3 rounded-lg border-2 border-dashed ${darkMode ? 'border-gray-600 bg-gray-700/30 text-gray-400' : 'border-gray-300 bg-gray-100/50 text-gray-500'} flex flex-col items-center justify-center max-w-xs md:max-w-sm`}>
                     <ImageOff className="w-10 h-10 mb-2 opacity-70" />
@@ -89,39 +109,24 @@ const Message: React.FC<MessageProps> = ({ message, theme, darkMode }) => {
                     <p className="text-xs text-center">{message.image.model || 'Could not generate image.'}</p>
                   </div>
                 )}
-                {message.image.success && message.image.model && (
-                   <p className={`text-xs mt-1 ${theme.muted}`}>Generated with {message.image.model}</p>
-                )}
               </div>
             )}
-             <p className={`text-xs mt-2 text-right ${message.type === 'user' ? 'text-cyan-100/80' :
-                (isErrorMood ? (darkMode ? 'text-red-300/80' : 'text-red-600/80') :
-                (isDemoMood ? (darkMode ? 'text-yellow-300/80' : 'text-yellow-600/80') : theme.muted))
-            }`}>
+        </div>
+        <div className="flex items-center justify-start mt-1.5 space-x-3">
+            <span className={`text-xs ${theme.muted}`}>
                 {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-             </p>
-          </div>
-          {message.type === 'user' && (
-             <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-cyan-500 text-white`}>
-                <User className="w-5 h-5" />
-             </div>
-          )}
+            </span>
+            {typeof message.content === 'string' && message.content.trim() !== '' && (
+              <button
+                onClick={handleCopy}
+                title={copied ? "Copied!" : "Copy message"}
+                className={`p-1 rounded-full transition-all duration-200 text-gray-400 hover:text-gray-200 hover:bg-gray-700 opacity-0 group-hover:opacity-100`}
+              >
+                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            )}
         </div>
       </div>
-      {typeof message.content === 'string' && message.content.trim() !== '' && ( // Only show copy button if there's content
-        <button
-          onClick={handleCopy}
-          title={copied ? "Copied!" : "Copy message"}
-          aria-label={copied ? "Message content copied to clipboard" : "Copy message content to clipboard"}
-          className={`absolute top-1 p-1.5 rounded-full transition-all duration-200 opacity-0 group-hover:opacity-100 focus:opacity-100
-                      ${message.type === 'user' ?
-                        'right-11 bg-cyan-600/80 hover:bg-cyan-500 text-white dark:bg-cyan-700/80 dark:hover:bg-cyan-600' :
-                        `left-11 ${isErrorMood || isDemoMood ? (darkMode? 'bg-slate-600/70 hover:bg-slate-500' : 'bg-slate-300/70 hover:bg-slate-400') : (darkMode ? 'bg-slate-600/70 hover:bg-slate-500' : 'bg-slate-300/70 hover:bg-slate-400')} text-slate-100 dark:text-slate-200`}
-                    `}
-        >
-          {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-        </button>
-      )}
     </div>
   );
 };
@@ -131,9 +136,10 @@ interface ChatWindowProps {
   isTyping: boolean;
   theme: ThemeColors;
   darkMode: boolean;
+  personas: Record<string, PersonaInfo>;
 }
 
-const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isTyping, theme, darkMode }) => {
+const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isTyping, theme, darkMode, personas }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -141,19 +147,21 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isTyping, theme, dark
   }, [messages, isTyping]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-3 md:p-4">
-      <div className="max-w-6xl mx-auto">
+    <div className="flex-1 overflow-y-auto p-4">
+      <div className="max-w-3xl mx-auto">
         {messages.map((message) => (
-          <Message key={message.id} message={message} theme={theme} darkMode={darkMode} />
+          <Message key={message.id} message={message} theme={theme} darkMode={darkMode} personas={personas} />
         ))}
         {isTyping && (
-          <div className="flex justify-start mb-1">
-            <div className={`${theme.card} border ${darkMode ? 'border-purple-500/30' : 'border-purple-200/50'} rounded-xl p-3 md:p-4 shadow-md animate-pulse`}>
-              <div className="flex items-center space-x-2">
-                <Bot className={`w-5 h-5 ${theme.secondaryAccent}`} />
-                <span className={theme.text}>Lagos Oracle is thinking...</span>
-              </div>
-            </div>
+          <div className="flex items-start gap-3 my-4">
+             <Avatar persona={{ name: 'Oracle', icon: '🤖', description: '', systemPromptModifier: '', color: 'bg-purple-500' }} />
+             <div className="rounded-xl px-4 py-3 shadow-md bg-gray-200 dark:bg-gray-700">
+                <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse" style={{ animationDelay: '0s' }}></div>
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                </div>
+             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
