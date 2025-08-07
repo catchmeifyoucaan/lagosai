@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "experimentalDecorators": true, // Keep if you use decorators
-    "useDefineForClassFields": true, // Recommended for modern React/TS
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
     "module": "ESNext",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
@@ -10,11 +10,10 @@
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "resolveJsonModule": true, // Needed for importing JSON files
     "isolatedModules": true,
-    "moduleDetection": "force", // Good for ensuring module context
+    "moduleDetection": "force",
     "noEmit": true,
-    "allowJs": true, // Keep if you have JS files in your project
+    "allowJs": true,
     "jsx": "react-jsx",
 
     /* Linting */
@@ -22,11 +21,10 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true, // Good for strictness
+    "noUncheckedSideEffectImports": true,
 
     "paths": {
-      "@/*" :  ["./*"] // Keep if you use path aliases, otherwise remove
+      "@/*" :  ["./*"]
     }
-  }, // <--- CRUCIAL COMMA ADDED HERE
-  "include": ["./src", "./components", "./types.d.ts", "./env.d.ts"] // <--- MOVED TO TOP LEVEL
+  }
 }

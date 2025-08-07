@@ -1,8 +1,0 @@
-{
-  "name": "Lagos Oracle Ultra",
-  "description": "A next-generation AI companion with voice, vision, and Lagos expertise. Chat with multiple AI models, generate images, and explore Lagos culture. Requires a Gemini API key to be set in environment variables for full Gemini functionality.",
-  "requestFramePermissions": [
-    "microphone",
-    "camera"
-  ]
-}

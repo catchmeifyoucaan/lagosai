@@ -1,3 +1,4 @@
+
 export interface Message {
   id: number;
   type: 'user' | 'oracle';
@@ -13,12 +14,6 @@ export interface ImageResult {
   imageUrl: string;
   model: string;
   success: boolean;
-}
-
-export interface Chat {
-  id: string;
-  title: string;
-  messages: Message[];
 }
 
 export type AIModelKey = 'openai' | 'gemini' | 'claude' | 'auto';
