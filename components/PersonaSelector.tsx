@@ -43,7 +43,8 @@ const PersonaSelector: React.FC<PersonaSelectorProps> = ({
           >
             &times; Close
           </button>
-        </div>
+        </div> {
+      </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           {Object.entries(personas).map(([key, persona]) => {
             const isSelected = selectedPersonaKey === key;
