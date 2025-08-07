@@ -1,22 +1,27 @@
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Bot, User, AlertTriangle, ImageOff, Copy, Check, RefreshCw } from 'lucide-react';
+import React, { useRef, useEffect, useState } from 'react';
+import { Bot, User, AlertTriangle, ImageOff, Copy, Check } from 'lucide-react';
 import { Message as MessageType, ThemeColors } from '../types';
-import MarkdownRenderer from './MarkdownRenderer';
-import PromptSuggestions from './PromptSuggestions';
+import { marked } from 'marked';
+
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+});
 
 interface MessageProps {
   message: MessageType;
+  theme: ThemeColors;
   darkMode: boolean;
-  isLastMessage: boolean;
-  onRegenerate: () => void;
 }
 
-const Message: React.FC<MessageProps> = ({ message, darkMode, isLastMessage, onRegenerate }) => {
+const Message: React.FC<MessageProps> = ({ message, theme, darkMode }) => {
   const [copied, setCopied] = useState(false);
+  // Ensure message.content is always a string before parsing
+  const htmlContent = marked.parse(typeof message.content === 'string' ? message.content : '*Error: Invalid message content*');
 
   const handleCopy = () => {
-    if (typeof message.content !== 'string') return;
+    if (typeof message.content !== 'string') return; // Don't copy if content isn't string
     navigator.clipboard.writeText(message.content).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -26,34 +31,51 @@ const Message: React.FC<MessageProps> = ({ message, darkMode, isLastMessage, onR
   };
 
   const isErrorMood = message.mood === 'error';
-  const isDemoMood = message.mood === 'demo' && !isErrorMood;
+  const isDemoMood = message.mood === 'demo' && !isErrorMood; // Demo shouldn't override error
 
-  // Adjusted styles for Gemini-like appearance
-  const userMessageBg = 'bg-blue-500'; // Slightly lighter blue for user messages
-  const oracleMessageBg = 'bg-gray-700'; // Darker gray for oracle messages
-  const commonRounded = 'rounded-2xl'; // More rounded corners
+  const oracleCardBaseStyle = `${theme.card} border ${darkMode ? 'border-purple-500/30' : 'border-purple-200/50'}`;
+  const oracleCardErrorStyle = `bg-red-500/10 border-red-500/40 dark:bg-red-700/20 dark:border-red-600/50`;
+  const oracleCardDemoStyle = `bg-yellow-400/10 border-yellow-500/40 dark:bg-yellow-600/20 dark:border-yellow-500/50`;
+
+  let oracleCardStyle = oracleCardBaseStyle;
+  if (isErrorMood) {
+    oracleCardStyle = oracleCardErrorStyle;
+  } else if (isDemoMood) {
+    oracleCardStyle = oracleCardDemoStyle;
+  }
+
 
   return (
-    <div className={`group flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div className={`max-w-2xl md:max-w-3xl lg:max-w-4xl ${commonRounded} ${
+    <div className={`group flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} relative mb-1`}>
+      <div className={`max-w-2xl md:max-w-3xl lg:max-w-4xl shadow-md ${
         message.type === 'user' ? 
-        `${userMessageBg} text-white rounded-br-none` : 
-        `${oracleMessageBg} text-white rounded-bl-none`
-      } p-3 md:p-4 relative`}>
+        'bg-cyan-500 dark:bg-cyan-600 text-white rounded-t-xl rounded-bl-xl' :
+        `${oracleCardStyle} rounded-t-xl rounded-br-xl`
+      } p-3 md:p-4`}>
         <div className="flex items-start space-x-3">
           {message.type === 'oracle' && (
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white bg-gradient-to-br from-purple-500 to-pink-500">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white ${
+              isErrorMood ? 'bg-red-500' : (isDemoMood ? 'bg-yellow-500' : 'bg-gradient-to-br from-purple-500 to-pink-500')
+            }`}>
               {isErrorMood ? <AlertTriangle className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
             </div>
           )}
           <div className="flex-1 min-w-0">
             {message.type === 'oracle' && message.model && (
-              <div className={`flex items-center space-x-2 text-xs mb-1.5 ${isErrorMood ? 'text-red-300 font-semibold' : (isDemoMood ? 'text-yellow-300' : 'text-gray-400')}`}>
+              <div className={`flex items-center space-x-2 text-xs mb-1.5 ${
+                isErrorMood ? (darkMode ? 'text-red-300 font-semibold' : 'text-red-700 font-semibold') :
+                (isDemoMood ? (darkMode ? 'text-yellow-300' : 'text-yellow-700') : theme.muted)
+              }`}>
                 <span>{message.model}</span>
                 {message.image?.success && <span className="text-pink-400">🖼️ Image</span>}
               </div>
             )}
-            <MarkdownRenderer content={message.content} darkMode={darkMode} />
+            <div className={`prose prose-sm max-w-none prose-p:my-1 prose-strong:font-semibold
+                            ${theme.text}
+                            ${message.type === 'user' ? 'prose-invert' : ''}
+                            ${isErrorMood ? (darkMode ? 'prose-p:text-red-200 prose-strong:text-red-100' : 'prose-p:text-red-800 prose-strong:text-red-900') : ''}
+                          `}
+                 dangerouslySetInnerHTML={{ __html: htmlContent }} />
             
             {message.image && (
               <div className="mt-3">
@@ -68,58 +90,38 @@ const Message: React.FC<MessageProps> = ({ message, darkMode, isLastMessage, onR
                   </div>
                 )}
                 {message.image.success && message.image.model && (
-                   <p className="text-xs mt-1 text-gray-400">Generated with {message.image.model}</p>
+                   <p className={`text-xs mt-1 ${theme.muted}`}>Generated with {message.image.model}</p>
                 )}
               </div>
             )}
-             <p className={`text-xs mt-2 text-right ${message.type === 'user' ? 'text-blue-100/80' : 
-                (isErrorMood ? 'text-red-300/80' : 
-                (isDemoMood ? 'text-yellow-300/80' : 'text-gray-400'))
+             <p className={`text-xs mt-2 text-right ${message.type === 'user' ? 'text-cyan-100/80' :
+                (isErrorMood ? (darkMode ? 'text-red-300/80' : 'text-red-600/80') :
+                (isDemoMood ? (darkMode ? 'text-yellow-300/80' : 'text-yellow-600/80') : theme.muted))
             }`}>
                 {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
              </p>
           </div>
           {message.type === 'user' && (
-             <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-blue-600 text-white">
+             <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-cyan-500 text-white`}>
                 <User className="w-5 h-5" />
              </div>
           )}
         </div>
-        {/* Action buttons for Oracle messages */}
-        {message.type === 'oracle' && typeof message.content === 'string' && message.content.trim() !== '' && (
-          <div className="absolute -bottom-2 left-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 bg-gray-800 rounded-md p-1">
-            {isLastMessage && !isErrorMood && (
-              <button
-                onClick={onRegenerate}
-                title="Regenerate response"
-                className="p-1.5 rounded-full hover:bg-gray-600 text-gray-300 hover:text-white"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-              </button>
-            )}
-            <button 
-              onClick={handleCopy}
-              title={copied ? "Copied!" : "Copy message"}
-              className="p-1.5 rounded-full hover:bg-gray-600 text-gray-300 hover:text-white"
-            >
-              {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-        )}
-        {/* Action button for User messages */}
-        {message.type === 'user' && typeof message.content === 'string' && message.content.trim() !== '' && (
-          <div className="absolute -bottom-2 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 bg-gray-800 rounded-md p-1">
-            <button 
-              onClick={handleCopy}
-              title={copied ? "Copied!" : "Copy message"}
-              aria-label={copied ? "Message content copied to clipboard" : "Copy message content to clipboard"}
-              className="p-1.5 rounded-full hover:bg-gray-600 text-gray-300 hover:text-white"
-            >
-              {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-        )}
       </div>
+      {typeof message.content === 'string' && message.content.trim() !== '' && ( // Only show copy button if there's content
+        <button
+          onClick={handleCopy}
+          title={copied ? "Copied!" : "Copy message"}
+          aria-label={copied ? "Message content copied to clipboard" : "Copy message content to clipboard"}
+          className={`absolute top-1 p-1.5 rounded-full transition-all duration-200 opacity-0 group-hover:opacity-100 focus:opacity-100
+                      ${message.type === 'user' ?
+                        'right-11 bg-cyan-600/80 hover:bg-cyan-500 text-white dark:bg-cyan-700/80 dark:hover:bg-cyan-600' :
+                        `left-11 ${isErrorMood || isDemoMood ? (darkMode? 'bg-slate-600/70 hover:bg-slate-500' : 'bg-slate-300/70 hover:bg-slate-400') : (darkMode ? 'bg-slate-600/70 hover:bg-slate-500' : 'bg-slate-300/70 hover:bg-slate-400')} text-slate-100 dark:text-slate-200`}
+                    `}
+        >
+          {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+        </button>
+      )}
     </div>
   );
 };
@@ -127,50 +129,32 @@ const Message: React.FC<MessageProps> = ({ message, darkMode, isLastMessage, onR
 interface ChatWindowProps {
   messages: MessageType[];
   isTyping: boolean;
+  theme: ThemeColors;
   darkMode: boolean;
-  handleSend: (prompt: string) => void;
-  handleRegenerate: () => void;
 }
 
-const ChatWindow: React.FC<ChatWindowProps> = ({
-  messages,
-  isTyping,
-  darkMode,
-  handleSend,
-  handleRegenerate,
-}) => {
+const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isTyping, theme, darkMode }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  const showPromptSuggestions = messages.length === 1 && messages[0].type === 'oracle';
-
   return (
-    <div className="flex-1 flex justify-center overflow-hidden">
-      <div className="w-full max-w-4xl px-4 py-6 overflow-y-auto custom-scrollbar">
-        {messages.map((message, index) => (
-          <Message
-            key={index}
-            message={message}
-            darkMode={darkMode}
-            isLastMessage={index === messages.length - 1}
-            onRegenerate={handleRegenerate}
-          />
+    <div className="flex-1 overflow-y-auto p-3 md:p-4">
+      <div className="max-w-6xl mx-auto">
+        {messages.map((message) => (
+          <Message key={message.id} message={message} theme={theme} darkMode={darkMode} />
         ))}
         {isTyping && (
-          <div className="flex justify-start mb-4">
-            <div className="bg-gray-700 text-white rounded-xl p-3 md:p-4 rounded-bl-none animate-pulse">
+          <div className="flex justify-start mb-1">
+            <div className={`${theme.card} border ${darkMode ? 'border-purple-500/30' : 'border-purple-200/50'} rounded-xl p-3 md:p-4 shadow-md animate-pulse`}>
               <div className="flex items-center space-x-2">
-                <Bot className="w-5 h-5 text-blue-400" />
-                <span className="text-white">Lagos Oracle is thinking...</span>
+                <Bot className={`w-5 h-5 ${theme.secondaryAccent}`} />
+                <span className={theme.text}>Lagos Oracle is thinking...</span>
               </div>
             </div>
           </div>
-        )}
-        {showPromptSuggestions && (
-          <PromptSuggestions onPromptClick={handleSend} />
         )}
         <div ref={messagesEndRef} />
       </div>
@@ -179,4 +163,3 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
 };
 
 export default ChatWindow;
-
