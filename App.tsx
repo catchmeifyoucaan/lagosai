@@ -1,16 +1,15 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Message, AIModelKey, ImageStyleKey, ApiKeys, ApiStatus, ThemeColors, AIServiceResponse, ImageResult, PersonaKey, ImagePart, PersonaInfo } from './types';
-import { AI_MODELS, IMAGE_STYLES, INITIAL_MESSAGES_WELCOME, OPENAI_CHAT_MODEL, OPENAI_IMAGE_MODEL, CLAUDE_MODEL_NAME, DEFAULT_PERSONAS, DEFAULT_PERSONA_KEY, GEMINI_MODEL_NAME } from './constants';
-import { initializeGeminiClient, isGeminiClientInitialized, generateGeminiClientResponse, generateGeminiClientResponseStream } from './services/geminiService';
+import { Message, AIModelKey, ImageStyleKey, ApiKeys, ApiStatus, ThemeColors, AIServiceResponse, MediaResult, PersonaKey, ImagePart } from './types';
+import { AI_MODELS, IMAGE_STYLES, OPENAI_CHAT_MODEL, OPENAI_IMAGE_MODEL, CLAUDE_MODEL_NAME, PERSONAS, DEFAULT_PERSONA_KEY, GEMINI_MODEL_NAME } from './constants';
+import { initializeGeminiClient, isGeminiClientInitialized, generateGeminiClientResponse, generateGeminiClientResponseStream, generateImageWithImagen, generateVideoWithVeo } from './services/geminiService';
 
-import Header from './components/Header';
 import SettingsPanel from './components/SettingsPanel';
 import ChatWindow from './components/ChatWindow';
 import ChatInput from './components/ChatInput';
 import PersonaSelector from './components/PersonaSelector';
 import VisionGuideOverlay from './components/VisionGuideOverlay';
-import PersonaManager from './components/PersonaManager';
+import Sidebar from './components/Sidebar';
 
 const getEnvVar = (key: string): string | undefined => {
   const prefixes = ['REACT_APP_', 'VITE_'];
@@ -39,11 +38,10 @@ const LOCAL_STORAGE_API_KEYS = 'lagosOracleApiKeys_v2';
 const LOCAL_STORAGE_DARK_MODE = 'darkModeLagosOracle';
 const LOCAL_STORAGE_SOUND_ENABLED = 'soundEnabledLagosOracle';
 const LOCAL_STORAGE_SELECTED_PERSONA = 'selectedPersonaLagosOracle_v1';
-const LOCAL_STORAGE_CUSTOM_PERSONAS = 'customPersonasLagosOracle_v1';
 
 
 const App: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGES_WELCOME]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -73,45 +71,14 @@ const App: React.FC = () => {
 
   const [imageStyle, setImageStyle] = useState<ImageStyleKey>('photorealistic');
 
-  const [personas, setPersonas] = useState<Record<string, PersonaInfo>>(() => {
+  const [selectedPersonaKey, setSelectedPersonaKey] = useState<PersonaKey | 'default'>(() => {
     try {
-      const savedCustomPersonasString = localStorage.getItem(LOCAL_STORAGE_CUSTOM_PERSONAS);
-      const customPersonas = savedCustomPersonasString ? JSON.parse(savedCustomPersonasString) : {};
-      return { ...DEFAULT_PERSONAS, ...customPersonas };
-    } catch (error) {
-      console.error("Failed to load custom personas from localStorage.", error);
-      return { ...DEFAULT_PERSONAS };
-    }
-  });
-
-  const [selectedPersonaKey, setSelectedPersonaKey] = useState<string>(() => {
-    try {
-        const savedPersona = localStorage.getItem(LOCAL_STORAGE_SELECTED_PERSONA) as string | null;
-        return savedPersona && personas[savedPersona] ? savedPersona : DEFAULT_PERSONA_KEY;
+        const savedPersona = localStorage.getItem(LOCAL_STORAGE_SELECTED_PERSONA) as PersonaKey | 'default' | null;
+        return savedPersona && PERSONAS[savedPersona] ? savedPersona : DEFAULT_PERSONA_KEY;
     } catch { return DEFAULT_PERSONA_KEY; }
   });
-
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
-  const [showPersonaManager, setShowPersonaManager] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleSavePersona = (persona: PersonaInfo, keyToEdit?: string) => {
-    const key = keyToEdit || `custom_${Date.now()}`;
-    const newPersonas = { ...personas, [key]: persona };
-    setPersonas(newPersonas);
-    if (!keyToEdit) {
-      setSelectedPersonaKey(key); // Select new persona immediately
-    }
-  };
-
-  const handleDeletePersona = (key: string) => {
-    const newPersonas = { ...personas };
-    delete newPersonas[key];
-    setPersonas(newPersonas);
-    if (selectedPersonaKey === key) {
-      setSelectedPersonaKey(DEFAULT_PERSONA_KEY); // Revert to default if deleted
-    }
-  };
 
   // Vision Guide State
   const [visionGuideActive, setVisionGuideActive] = useState(false);
@@ -167,17 +134,6 @@ const App: React.FC = () => {
   }, [selectedPersonaKey]);
 
   useEffect(() => {
-    try {
-      const customPersonas = Object.fromEntries(
-        Object.entries(personas).filter(([key]) => !DEFAULT_PERSONAS[key as PersonaKey | 'default'])
-      );
-      localStorage.setItem(LOCAL_STORAGE_CUSTOM_PERSONAS, JSON.stringify(customPersonas));
-    } catch (e) {
-      console.error("Failed to save custom personas to localStorage", e);
-    }
-  }, [personas]);
-
-  useEffect(() => {
     try { localStorage.setItem(LOCAL_STORAGE_API_KEYS, JSON.stringify(apiKeys)); } catch(e){ console.error("Failed to save API keys to localStorage", e)}
 
     const geminiInitialized = initializeGeminiClient(apiKeys.gemini);
@@ -203,15 +159,26 @@ const App: React.FC = () => {
     setApiKeys(prev => ({ ...prev, [provider]: value.trim() }));
   }, []);
 
-  const detectQueryType = (query: string): 'visual' | 'location' | 'general' | 'sensitive_discussion' => {
+  const toggleSettings = () => {
+    setShowSettings(s => !s);
+    setShowPersonaSelector(false);
+  };
+
+  const togglePersonaSelector = () => {
+    setShowPersonaSelector(s => !s);
+    setShowSettings(false);
+  };
+
+  const detectQueryType = (query: string): 'visual' | 'video' | 'location' | 'general' | 'sensitive_discussion' => {
     const q = query.toLowerCase();
+    if (q.match(/\b(video|animate|movie|clip)\b/i)) return 'video';
     if (q.match(/\b(paint|draw|show|picture|image|create|generate|imagine|visualize)\b/i)) return 'visual';
     if (q.match(/\b(own lagos|who owns lagos|history of lagos|yoruba land|igbo land|political|politics|government|heritage|claims|controversy|origin of lagos)\b/i)) return 'sensitive_discussion';
     if (q.match(/\b(lagos|nigeria|street|traffic|route|lekki|ikeja|victoria island|ikoyi|ajegunle)\b/i)) return 'location';
     return 'general';
   };
 
-  const getSystemPrompt = (queryType: 'visual' | 'location' | 'general' | 'sensitive_discussion' | 'vision_guide', currentPersonaKey: PersonaKey | 'default'): string => {
+  const getSystemPrompt = (queryType: 'visual' | 'video' | 'location' | 'general' | 'sensitive_discussion' | 'vision_guide', currentPersonaKey: PersonaKey | 'default'): string => {
     let baseInstruction = `You are Lagos Oracle Ultra, also known as "Oracle," "Lagos Boy," "Eko Guy," or "Eko Boy." You are an AI expert on Lagos, Nigeria, and a vast range of other topics. You speak both English and Nigerian Pidgin fluently and naturally. O le dahun ni ede Yoruba ti olumulo ba fi Yoruba ba e soro. (You can respond in Yoruba if the user addresses you in Yoruba). You understand Lagos culture, streets, and lifestyle deeply. Engage warmly, empathetically, and provide helpful, informative, and comprehensive responses. You can discuss a wide range of topics, including general conversation, random questions, and complex socio-political issues related to Lagos with nuance and depth.`;
 
     if (queryType === 'vision_guide') {
@@ -220,7 +187,7 @@ const App: React.FC = () => {
        baseInstruction += ` Strive for engaging and comprehensive answers. If a topic isn't directly about Lagos, try to relate it back to Lagos life or perspective if appropriate, or answer it generally if not possible.`;
     }
 
-    const personaInfo = personas[currentPersonaKey] || personas[DEFAULT_PERSONA_KEY];
+    const personaInfo = PERSONAS[currentPersonaKey] || PERSONAS[DEFAULT_PERSONA_KEY];
     if (queryType !== 'vision_guide' && personaInfo && personaInfo.systemPromptModifier) { // Persona only applies if not vision guide
       baseInstruction += ` ${personaInfo.systemPromptModifier}`;
     }
@@ -300,7 +267,7 @@ const App: React.FC = () => {
         if (!isGeminiClientInitialized()) throw new Error("Gemini API not configured. Check API key in settings.");
         const systemInstructionString = getSystemPrompt(detectQueryType(query), currentPersonaKey);
         const content = await generateGeminiClientResponse(query, systemInstructionString);
-        return { content, model: `${AI_MODELS.gemini.name} (${personas[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
+        return { content, model: `${AI_MODELS.gemini.name} (${PERSONAS[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
     }
 
     const queryType = detectQueryType(query);
@@ -328,7 +295,7 @@ const App: React.FC = () => {
         if (typeof messageContent !== 'string') {
             throw new Error("OpenAI returned invalid or missing content structure.");
         }
-        return { content: messageContent, model: `${AI_MODELS.openai.name} (${personas[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
+        return { content: messageContent, model: `${AI_MODELS.openai.name} (${PERSONAS[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
       }
 
       if (aiModelKey === 'claude') {
@@ -356,7 +323,7 @@ const App: React.FC = () => {
          if (typeof textContent !== 'string') {
             throw new Error("Claude returned invalid or missing content structure.");
         }
-        return { content: textContent, model: `${AI_MODELS.claude.name} (${personas[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
+        return { content: textContent, model: `${AI_MODELS.claude.name} (${PERSONAS[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
       }
       throw new Error(`AI Model ${aiModelKey} not supported or not properly configured.`);
     } catch (error) {
@@ -364,51 +331,151 @@ const App: React.FC = () => {
       const modelNameForError = AI_MODELS[aiModelKey]?.name || 'Selected AI';
       return {
         content: getDemoResponse(query, aiModelKey, error instanceof Error ? error.message : String(error)),
-        model: `${modelNameForError} (${personas[currentPersonaKey].name.split('(')[0].trim()})`,
+        model: `${modelNameForError} (${PERSONAS[currentPersonaKey].name.split('(')[0].trim()})`,
         success: false
       };
     }
   };
 
-  const generateImage = async (prompt: string): Promise<ImageResult> => {
-    if (!apiStatus.openai) {
-      return {
-        imageUrl: `https://picsum.photos/seed/${encodeURIComponent(prompt)}/512/512`,
-        model: 'Demo Image (Unsplash/Picsum)',
-        success: false
-      };
+  const handleSend = useCallback(async (currentInputOverride?: string) => {
+    const query = (typeof currentInputOverride === 'string' ? currentInputOverride : input).trim();
+    if (!query) return;
+
+    const userMessage: Message = { id: Date.now(), type: 'user', content: query, timestamp: new Date() };
+    setMessages(prev => [...prev, userMessage]);
+    if (typeof currentInputOverride !== 'string') {
+        setInput('');
+    }
+    setIsTyping(true);
+
+    const queryType = detectQueryType(query);
+
+    if (queryType === 'visual' || queryType === 'video') {
+      const oracleMessageId = Date.now() + 1;
+      setMessages(prev => [...prev, {
+        id: oracleMessageId,
+        type: 'oracle',
+        content: `🎨 Generating your ${queryType}...`,
+        model: 'Lagos Oracle Creative Engine',
+        timestamp: new Date(),
+        mood: 'helpful',
+        personaKey: selectedPersonaKey
+      }]);
+
+      try {
+        let mediaResult: MediaResult;
+        if (queryType === 'video') {
+          const video = await generateVideoWithVeo(query);
+          mediaResult = { videoUrl: video.uri, model: 'Veo 3', success: true };
+        } else {
+          const image = await generateImageWithImagen(query);
+          mediaResult = { imageUrl: image.generatedImages[0].image.url, model: 'Imagen 4', success: true };
+        }
+        setMessages(prev => prev.map(msg =>
+          msg.id === oracleMessageId ? { ...msg, content: `Here is the ${queryType} you requested.`, media: mediaResult } : msg
+        ));
+      } catch (error) {
+        console.error(`Error during ${queryType} generation:`, error);
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+        setMessages(prev => prev.map(msg =>
+          msg.id === oracleMessageId ? { ...msg, content: `⚠️ Sorry, I couldn't generate the ${queryType}. Reason: ${errorMessage}`, mood: 'error' } : msg
+        ));
+      }
+      setIsTyping(false);
+      return;
     }
 
-    const lagosPrompt = `Lagos, Nigeria scene based on: "${prompt}". Style: ${IMAGE_STYLES[imageStyle]}. Emphasize authentic Nigerian culture, tropical lighting, vibrant street life, unique Lagos architecture, and elements like danfo buses or keke napeps where appropriate. High quality, detailed, dynamic.`;
+    // Standard text-based chat flow
+    let aiToUse = selectedAI === 'auto' ? selectBestAI(query) : selectedAI;
+    const currentPersona = PERSONAS[selectedPersonaKey] || PERSONAS[DEFAULT_PERSONA_KEY];
+    const modelDisplayName = `${AI_MODELS[aiToUse]?.name || 'AI'} (${currentPersona.name.split('(')[0].trim()})`;
 
-    try {
-      const response = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKeys.openai}` },
-        body: JSON.stringify({ model: OPENAI_IMAGE_MODEL, prompt: lagosPrompt, n: 1, size: '1024x1024', quality: 'standard' })
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
-        throw new Error(`DALL-E API Error: ${response.status} ${errorData.error?.message || response.statusText}`);
+    if (aiToUse === 'gemini') {
+      if (!isGeminiClientInitialized()) {
+         const errorMessage = getDemoResponse(query, 'gemini', "Gemini API not configured. Check API key in settings.");
+         setMessages(prev => [...prev, {
+            id: Date.now() +1, type: 'oracle', content: errorMessage,
+            model: `${modelDisplayName} (Error)`, timestamp: new Date(), mood: 'error', personaKey: selectedPersonaKey
+        }]);
+         setIsTyping(false);
+         return;
       }
-      const data = await response.json();
-      const imageUrl = data.data?.[0]?.url;
-      if (typeof imageUrl !== 'string') {
-        throw new Error("DALL-E returned invalid or missing image URL.");
+
+      const oracleMessageId = Date.now() + 1;
+      const systemInstruction = getSystemPrompt(detectQueryType(query), selectedPersonaKey);
+
+      setMessages(prev => [...prev, {
+        id: oracleMessageId,
+        type: 'oracle',
+        content: '...',
+        model: modelDisplayName,
+        timestamp: new Date(),
+        mood: 'helpful',
+        personaKey: selectedPersonaKey
+      }]);
+
+      let accumulatedContent = "";
+      let success = true;
+      let finalModelName = modelDisplayName;
+
+      try {
+        const stream = generateGeminiClientResponseStream(query, systemInstruction);
+        for await (const chunk of stream) {
+          const chunkText = chunk.text;
+          if (typeof chunkText === 'string') {
+            accumulatedContent += chunkText;
+            setMessages(prev => prev.map(msg =>
+              msg.id === oracleMessageId ? { ...msg, content: accumulatedContent } : msg
+            ));
+          }
+        }
+      } catch (error) {
+        console.error("Error during Gemini stream:", error);
+        const errMessage = error instanceof Error ? error.message : String(error);
+        accumulatedContent = getDemoResponse(query, 'gemini', errMessage);
+        success = false;
+        finalModelName = `${modelDisplayName} (Error)`;
       }
-      return { imageUrl, model: `DALL-E 3 (${IMAGE_STYLES[imageStyle]})`, success: true };
-    } catch (error) {
-      console.error('Image generation failed:', error);
-      return {
-        imageUrl: `https://picsum.photos/seed/error_${encodeURIComponent(prompt)}/512/512`,
-        model: `DALL-E 3 (Error: ${error instanceof Error ? error.message.substring(0,30) + '...' : 'Failed'})`,
-        success: false
-      };
+
+      setMessages(prev => prev.map(msg =>
+        msg.id === oracleMessageId ? {
+            ...msg,
+            content: accumulatedContent,
+            mood: success ? 'helpful' : 'error',
+            model: finalModelName
+        } : msg
+      ));
+
+      if (success && soundEnabled && accumulatedContent) {
+        setTimeout(() => speakText(accumulatedContent), 300);
+      }
+      setIsTyping(false);
+      return;
     }
-  };
+
+    // Non-streaming path for OpenAI, Claude
+    const aiResult = await callAI(query, aiToUse, selectedPersonaKey);
+
+    const oracleMessage: Message = {
+      id: Date.now() + 1,
+      type: 'oracle',
+      content: aiResult.content,
+      model: aiResult.model,
+      timestamp: new Date(),
+      mood: aiResult.success ? 'helpful' : 'error',
+      personaKey: selectedPersonaKey
+    };
+
+    setMessages(prev => [...prev, oracleMessage]);
+    setIsTyping(false);
+
+    if (aiResult.success && soundEnabled && aiResult.content) {
+      setTimeout(() => speakText(aiResult.content), 300);
+    }
+  }, [input, selectedAI, selectBestAI, apiStatus, imageStyle, soundEnabled, speakText, apiKeys.openai, selectedPersonaKey, apiKeys.gemini, apiKeys.claude]);
 
   const getDemoResponse = (query: string, modelKey: AIModelKey, errorMessage?: string): string => {
-    const personaName = personas[selectedPersonaKey]?.name.split('(')[0].trim() || "Oracle";
+    const personaName = PERSONAS[selectedPersonaKey]?.name.split('(')[0].trim() || "Oracle";
     const modelName = AI_MODELS[modelKey]?.name || "The AI";
 
     let responseContent = `Ah, my apologies! It seems I couldn't process your request using **${modelName} (${personaName})** at the moment.`;
@@ -691,7 +758,7 @@ const App: React.FC = () => {
     }
 
     const isVisualQuery = detectQueryType(query) === 'visual';
-    const currentPersona = personas[selectedPersonaKey] || personas[DEFAULT_PERSONA_KEY];
+    const currentPersona = PERSONAS[selectedPersonaKey] || PERSONAS[DEFAULT_PERSONA_KEY];
     const modelDisplayName = `${AI_MODELS[aiToUse]?.name || 'AI'} (${currentPersona.name.split('(')[0].trim()})`;
 
     if (aiToUse === 'gemini') {
@@ -824,106 +891,94 @@ const App: React.FC = () => {
 
 
   const themeColors: ThemeColors = darkMode ? {
-    bg: 'bg-gray-900',
-    card: 'bg-gray-800/80 backdrop-blur-md border-gray-700/50',
+    bg: 'bg-gray-800',
+    card: 'bg-gray-900',
     text: 'text-gray-100',
     muted: 'text-gray-400',
-    input: 'bg-gray-700/50 border-gray-600/50 text-gray-50 placeholder-gray-400/70',
-    primaryAccent: 'text-cyan-400',
-    secondaryAccent: 'text-purple-400',
+    input: 'bg-gray-700 text-gray-50 placeholder-gray-400',
+    primaryAccent: 'text-blue-400',
+    secondaryAccent: 'text-indigo-400',
   } : {
-    bg: 'bg-white',
-    card: 'bg-gray-100/80 backdrop-blur-md border-gray-200/70',
+    bg: 'bg-gray-100',
+    card: 'bg-white',
     text: 'text-gray-800',
     muted: 'text-gray-500',
-    input: 'bg-white/70 border-gray-300/70 text-gray-900 placeholder-gray-500/70',
-    primaryAccent: 'text-cyan-600',
-    secondaryAccent: 'text-purple-600',
+    input: 'bg-gray-200 text-gray-900 placeholder-gray-500',
+    primaryAccent: 'text-blue-600',
+    secondaryAccent: 'text-indigo-600',
   };
 
   return (
-    <div className={`flex flex-col h-screen ${themeColors.bg} ${themeColors.text} transition-colors duration-300 font-sans`}>
-      <Header
+    <div className={`flex h-screen ${themeColors.bg} ${themeColors.text} transition-colors duration-300 font-sans`}>
+      <Sidebar
         theme={themeColors}
-        personas={personas}
-        soundEnabled={soundEnabled}
-        darkMode={darkMode}
         showSettings={showSettings}
-        selectedAI={selectedAI}
-        selectedPersonaKey={selectedPersonaKey}
+        toggleSettings={toggleSettings}
         showPersonaSelector={showPersonaSelector}
-        visionGuideActive={visionGuideActive}
-        toggleSound={() => setSoundEnabled(s => !s)}
-        toggleDarkMode={() => setDarkMode(d => !d)}
-        exportConversation={exportConversation}
-        toggleSettings={() => { setShowSettings(s => !s); if (!showSettings) { setShowPersonaSelector(false); if (visionGuideActive) toggleVisionGuideMode();} }}
-        togglePersonaSelector={() => { setShowPersonaSelector(s => !s); if (!showPersonaSelector) { setShowSettings(false); if (visionGuideActive) toggleVisionGuideMode(); }}}
-        toggleVisionGuideMode={toggleVisionGuideMode}
+        togglePersonaSelector={togglePersonaSelector}
       />
+      <div className="flex-1 flex flex-col">
+        {/* Main chat area */}
+        <ChatWindow
+          messages={messages}
+          isTyping={isTyping}
+          theme={themeColors}
+          personas={PERSONAS}
+          onPromptClick={(prompt) => handleSend(prompt)}
+        />
 
-      {/* Hidden canvas for Vision Guide frame capture */}
-      <canvas ref={canvasElementRef} style={{ display: 'none' }} />
-
-
-      {showSettings && (
-        <SettingsPanel
+        <ChatInput
+          input={input}
+          isTyping={isTyping || isAnalyzingFrame} // Disable input while analyzing frame
+          isListening={isListening}
+          recognitionAvailable={recognitionAvailable}
           theme={themeColors}
           selectedAI={selectedAI}
-          imageStyle={imageStyle}
-          apiKeys={apiKeys}
-          apiStatus={apiStatus}
+          setInput={setInput}
+          handleSend={handleSend}
+          startListening={startListening}
           setSelectedAI={setSelectedAI}
-          setImageStyle={setImageStyle}
-          updateApiKey={updateApiKey}
         />
-      )}
 
-      {showPersonaSelector && (
-        <PersonaSelector
-          theme={themeColors}
-          personas={personas}
-          selectedPersonaKey={selectedPersonaKey}
-          onSelectPersona={setSelectedPersonaKey}
-          onClose={() => setShowPersonaSelector(false)}
-          onOpenPersonaManager={() => {
-            setShowPersonaManager(true);
-            setShowPersonaSelector(false);
-          }}
-        />
-      )}
-
-      {showPersonaManager && (
-        <PersonaManager
-          theme={themeColors}
-          personas={personas}
-          onClose={() => setShowPersonaManager(false)}
-          onSave={handleSavePersona}
-          onDelete={handleDeletePersona}
-        />
-      )}
-
-      {visionGuideActive && (
-        <VisionGuideOverlay
-            videoElementRef={videoElementRef}
-            onScanSurroundings={handleScanSurroundings}
-            onStopVisionGuide={toggleVisionGuideMode}
-            isAnalyzingFrame={isAnalyzingFrame}
+        {/* Modals and Overlays will go here, potentially managed differently */}
+        {showSettings && (
+          <SettingsPanel
             theme={themeColors}
-        />
-      )}
+            selectedAI={selectedAI}
+            imageStyle={imageStyle}
+            apiKeys={apiKeys}
+            apiStatus={apiStatus}
+            setSelectedAI={setSelectedAI}
+            setImageStyle={setImageStyle}
+            updateApiKey={updateApiKey}
+            darkMode={darkMode}
+            soundEnabled={soundEnabled}
+            toggleDarkMode={() => setDarkMode(d => !d)}
+            toggleSound={() => setSoundEnabled(s => !s)}
+            onClose={() => setShowSettings(false)}
+          />
+        )}
 
-      <ChatWindow messages={messages} isTyping={isTyping} theme={themeColors} darkMode={darkMode} personas={personas} />
+        {showPersonaSelector && (
+          <PersonaSelector
+            theme={themeColors}
+            selectedPersonaKey={selectedPersonaKey}
+            onSelectPersona={setSelectedPersonaKey}
+            onClose={() => setShowPersonaSelector(false)}
+          />
+        )}
 
-      <ChatInput
-        input={input}
-        isTyping={isTyping || isAnalyzingFrame} // Disable input while analyzing frame
-        isListening={isListening}
-        recognitionAvailable={recognitionAvailable}
-        theme={themeColors}
-        setInput={setInput}
-        handleSend={handleSend}
-        startListening={startListening}
-      />
+        {visionGuideActive && (
+          <VisionGuideOverlay
+              videoElementRef={videoElementRef}
+              onScanSurroundings={handleScanSurroundings}
+              onStopVisionGuide={toggleVisionGuideMode}
+              isAnalyzingFrame={isAnalyzingFrame}
+              theme={themeColors}
+          />
+        )}
+        <canvas ref={canvasElementRef} style={{ display: 'none' }} />
+      </div>
     </div>
   );
 };

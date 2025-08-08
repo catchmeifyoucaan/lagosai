@@ -1,19 +1,20 @@
 
+export interface MediaResult {
+  imageUrl?: string;
+  videoUrl?: string;
+  model: string;
+  success: boolean;
+}
+
 export interface Message {
   id: number;
   type: 'user' | 'oracle';
   content: string;
   timestamp: Date;
   model?: string;
-  image?: ImageResult;
+  media?: MediaResult;
   mood?: 'excited' | 'helpful' | 'demo' | 'error';
   personaKey?: PersonaKey | 'default'; 
-}
-
-export interface ImageResult {
-  imageUrl: string;
-  model: string;
-  success: boolean;
 }
 
 export type AIModelKey = 'openai' | 'gemini' | 'claude' | 'auto';

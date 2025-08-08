@@ -1,7 +1,8 @@
 
 import React from 'react';
 import { ThemeColors, AIModelKey, ImageStyleKey, ApiKeys, ApiStatus } from '../types';
-import { AI_MODELS, IMAGE_STYLES } from '../constants'; // Changed from '@/constants'
+import { AI_MODELS, IMAGE_STYLES } from '../constants';
+import { Sun, Moon, Volume2, VolumeX } from 'lucide-react';
 
 interface SettingsPanelProps {
   theme: ThemeColors;
@@ -9,35 +10,15 @@ interface SettingsPanelProps {
   imageStyle: ImageStyleKey;
   apiKeys: ApiKeys;
   apiStatus: ApiStatus;
+  darkMode: boolean;
+  soundEnabled: boolean;
   setSelectedAI: (model: AIModelKey) => void;
   setImageStyle: (style: ImageStyleKey) => void;
   updateApiKey: (provider: keyof ApiKeys, value: string) => void;
+  toggleDarkMode: () => void;
+  toggleSound: () => void;
+  onClose: () => void;
 }
-
-const ApiKeyInput: React.FC<{
-  provider: keyof ApiKeys;
-  placeholder: string;
-  value: string;
-  isValid: boolean;
-  theme: ThemeColors;
-  statusColor: string;
-  onChange: (value: string) => void;
-  ariaLabel: string;
-}> = ({ provider, placeholder, value, isValid, theme, statusColor, onChange, ariaLabel }) => (
-  <div className="relative">
-    <input type="password" placeholder={placeholder}
-      value={value}
-      aria-label={ariaLabel}
-      onChange={(e) => onChange(e.target.value)}
-      className={`w-full px-3 py-2 pr-16 rounded-lg border text-sm ${theme.input} ${ /* Increased pr for "VALID" text */
-        isValid ? `border-${statusColor} focus:ring-${statusColor}` : `border-gray-600/50 focus:ring-cyan-400/50`
-      } focus:border-transparent focus:ring-2 transition-colors duration-200`}
-    />
-    {isValid && (
-      <div className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-${statusColor}`} aria-hidden="true">✓ VALID</div>
-    )}
-  </div>
-);
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({
   theme,
@@ -45,110 +26,102 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   imageStyle,
   apiKeys,
   apiStatus,
+  darkMode,
+  soundEnabled,
   setSelectedAI,
   setImageStyle,
-  updateApiKey
+  updateApiKey,
+  toggleDarkMode,
+  toggleSound,
+  onClose
 }) => {
   return (
-    <div className={`${theme.card} border-b p-4 shadow-md`}>
-      <div className="max-w-6xl mx-auto space-y-4">
-        <h3 className="text-lg font-semibold text-cyan-400">⚙️ Configuration</h3>
+    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className={`${theme.card} rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col`} onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
+          <h2 className="text-xl font-bold">Settings</h2>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">&times;</button>
+        </div>
 
-        <div>
-          <label htmlFor="ai-model-select" className="block text-sm font-medium mb-1">AI Model</label>
-          <div id="ai-model-select" role="group" aria-label="Select AI Model" className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {Object.entries(AI_MODELS).map(([keyStr, model]) => {
-              const key = keyStr as AIModelKey;
-              const isSpecificModelUnconfigured =
-                (key === 'gemini' && !apiStatus.gemini) ||
-                (key === 'openai' && !apiStatus.openai) ||
-                (key === 'claude' && !apiStatus.claude);
+        <div className="overflow-y-auto p-6 space-y-6">
+          {/* Appearance Section */}
+          <section>
+            <h3 className="text-lg font-semibold mb-3">Appearance</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label htmlFor="darkModeToggle" className="font-medium">Dark Mode</label>
+                <button onClick={toggleDarkMode} id="darkModeToggle" className={`p-2 rounded-full ${theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}>
+                  {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <label htmlFor="soundToggle" className="font-medium">Sound Enabled</label>
+                <button onClick={toggleSound} id="soundToggle" className={`p-2 rounded-full ${theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}>
+                  {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+                </button>
+              </div>
+            </div>
+          </section>
 
-              return (
-                <button key={key} onClick={() => setSelectedAI(key)}
-                  aria-pressed={selectedAI === key}
-                  className={`p-2 rounded-lg border text-sm transition-all duration-200 ${
+          {/* AI Model Section */}
+          <section>
+            <h3 className="text-lg font-semibold mb-3">AI Model</h3>
+            <div role="group" className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {Object.entries(AI_MODELS).map(([key, model]) => (
+                <button key={key} onClick={() => setSelectedAI(key as AIModelKey)}
+                  className={`p-3 rounded-lg border text-sm transition-all duration-200 ${
                     selectedAI === key ? `${model.color} border-current bg-current/10 font-semibold` :
-                    `${theme.muted} border-gray-500/30 hover:border-current hover:bg-gray-500/10`
-                  } ${isSpecificModelUnconfigured && selectedAI !== key ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  title={isSpecificModelUnconfigured ? `${model.name} API not configured or key invalid. Check settings.` : model.name}
-                  disabled={isSpecificModelUnconfigured}
-                >
+                    `${theme.muted} border-gray-300 dark:border-gray-600 hover:border-current hover:bg-gray-500/10`
+                  }`}>
                   {model.icon} {model.name}
                 </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="image-style-select" className="block text-sm font-medium mb-1">Image Style (DALL-E)</label>
-           <div id="image-style-select" role="group" aria-label="Select Image Style" className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {Object.entries(IMAGE_STYLES).map(([key, style]) => (
-              <button key={key} onClick={() => setImageStyle(key as ImageStyleKey)}
-                aria-pressed={imageStyle === key}
-                className={`p-2 rounded-lg border text-sm transition-all duration-200 ${
-                  imageStyle === key ? 'text-pink-400 border-pink-400 bg-pink-400/10 font-semibold' :
-                  `${theme.muted} border-gray-500/30 hover:border-current hover:text-pink-400 hover:border-pink-400/50 hover:bg-pink-400/10`
-                }`}>
-                {style}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1 flex items-center space-x-2">
-            <span>API Keys & Status</span>
-            <div className="flex space-x-1.5" aria-label="API Status Indicators">
-              <div className={`w-2.5 h-2.5 rounded-full ${apiStatus.openai ? 'bg-green-400' : 'bg-gray-400'}`} title={`OpenAI API ${apiStatus.openai ? 'Active' : 'Inactive'}`}></div>
-              <div className={`w-2.5 h-2.5 rounded-full ${apiStatus.gemini ? 'bg-blue-400' : 'bg-gray-400'}`} title={`Gemini API ${apiStatus.gemini ? 'Active' : 'Inactive'}`}></div>
-              <div className={`w-2.5 h-2.5 rounded-full ${apiStatus.claude ? 'bg-purple-400' : 'bg-gray-400'}`} title={`Claude API ${apiStatus.claude ? 'Active' : 'Inactive'}`}></div>
+              ))}
             </div>
-          </label>
-          <div className="grid md:grid-cols-3 gap-2"> {/* Changed to md:grid-cols-3 for Gemini */}
-            <ApiKeyInput
-              provider="openai"
-              placeholder="OpenAI API Key (sk-...)"
-              ariaLabel="OpenAI API Key Input"
-              value={apiKeys.openai}
-              isValid={apiStatus.openai}
-              theme={theme}
-              statusColor="green-400"
-              onChange={(value) => updateApiKey('openai', value)}
-            />
-            <ApiKeyInput
-              provider="gemini"
-              placeholder="Gemini API Key (AIza...)"
-              ariaLabel="Gemini API Key Input"
-              value={apiKeys.gemini}
-              isValid={apiStatus.gemini}
-              theme={theme}
-              statusColor="blue-400"
-              onChange={(value) => updateApiKey('gemini', value)}
-            />
-            <ApiKeyInput
-              provider="claude"
-              placeholder="Claude API Key (sk-ant-...)"
-              ariaLabel="Claude API Key Input"
-              value={apiKeys.claude}
-              isValid={apiStatus.claude}
-              theme={theme}
-              statusColor="purple-400"
-              onChange={(value) => updateApiKey('claude', value)}
-            />
-          </div>
-           <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 space-y-1">
-            <p>
-              Your API keys are <strong className={`${theme.text} font-semibold`}>saved automatically</strong> to your browser's local storage as you type. They are not sent to any server other than the respective API providers when you make a request.
+          </section>
+
+          {/* Image Style Section */}
+          <section>
+            <h3 className="text-lg font-semibold mb-3">Image Style (DALL-E)</h3>
+            <div role="group" className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {Object.entries(IMAGE_STYLES).map(([key, style]) => (
+                <button key={key} onClick={() => setImageStyle(key as ImageStyleKey)}
+                  className={`p-3 rounded-lg border text-sm transition-all duration-200 ${
+                    imageStyle === key ? 'text-pink-400 border-pink-400 bg-pink-400/10 font-semibold' :
+                    `${theme.muted} border-gray-300 dark:border-gray-600 hover:border-current hover:text-pink-400 hover:border-pink-400/50 hover:bg-pink-400/10`
+                  }`}>
+                  {style}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* API Keys Section */}
+          <section>
+            <h3 className="text-lg font-semibold mb-3">API Keys</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">OpenAI API Key</label>
+                <input type="password" placeholder="sk-..." value={apiKeys.openai}
+                  onChange={(e) => updateApiKey('openai', e.target.value)}
+                  className={`w-full px-3 py-2 rounded-lg border text-sm ${theme.input} border-gray-300 dark:border-gray-600`} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Gemini API Key</label>
+                <input type="password" placeholder="AIza..." value={apiKeys.gemini}
+                  onChange={(e) => updateApiKey('gemini', e.target.value)}
+                  className={`w-full px-3 py-2 rounded-lg border text-sm ${theme.input} border-gray-300 dark:border-gray-600`} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Claude API Key</label>
+                <input type="password" placeholder="sk-ant-..." value={apiKeys.claude}
+                  onChange={(e) => updateApiKey('claude', e.target.value)}
+                  className={`w-full px-3 py-2 rounded-lg border text-sm ${theme.input} border-gray-300 dark:border-gray-600`} />
+              </div>
+            </div>
+             <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+              Your API keys are saved automatically to your browser's local storage. They are never sent to our servers.
             </p>
-            <p>
-              If an API key is also set as an environment variable (e.g., for Gemini: `REACT_APP_GEMINI_API_KEY`), the value entered here will take precedence if provided.
-            </p>
-            {!apiStatus.openai && !apiStatus.claude && !apiStatus.gemini ? (
-              <span> Enter API keys to unlock full AI features.</span>
-            ) : null}
-          </div>
+          </section>
         </div>
       </div>
     </div>

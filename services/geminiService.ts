@@ -135,3 +135,43 @@ export async function* generateGeminiClientResponseStream(
     throw new Error(`Gemini API streaming error: ${errorMessage}`);
   }
 }
+
+export const generateImageWithImagen = async (prompt: string) => {
+  if (!geminiClient) {
+    throw new Error("Gemini AI SDK not initialized.");
+  }
+  try {
+    const result = await geminiClient.models.generateImages({
+      model: "imagen-3.0-generate-002",
+      prompt: prompt,
+    });
+    return result;
+  } catch (error) {
+    console.error("Error calling Imagen API:", error);
+    throw error;
+  }
+};
+
+export const generateVideoWithVeo = async (prompt: string, image?: any) => {
+  if (!geminiClient) {
+    throw new Error("Gemini AI SDK not initialized.");
+  }
+  try {
+    let operation = await geminiClient.models.generateVideos({
+      model: "veo-3.0-generate-preview",
+      prompt: prompt,
+      image: image,
+    });
+
+    // Poll for completion
+    while (!operation.done) {
+      await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait 10 seconds
+      operation = await geminiClient.operations.get(operation);
+    }
+
+    return operation.response.generatedVideos[0];
+  } catch (error) {
+    console.error("Error calling Veo API:", error);
+    throw error;
+  }
+};

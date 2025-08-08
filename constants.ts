@@ -15,15 +15,6 @@ export const IMAGE_STYLES: Record<ImageStyleKey, string> = {
   'anime': '🎭 Anime style'
 };
 
-export const INITIAL_MESSAGES_WELCOME = {
-  id: 1,
-  type: 'oracle' as const,
-  content: `🌟 **Lagos Oracle Ultra is LIVE!** 🌟\n\nWetin dey happen, Lagos! I be your next-generation AI companion with voice, vision, and Lagos expertise!\n\n✨ **Features:**\n• Voice commands & speech\n• Image generation (via OpenAI DALL-E 3)\n• Lagos cultural knowledge (powered by selected AI)\n• Multiple AI models (Gemini, OpenAI, Claude)\n• Selectable AI Personas! (Try the 🎭 icon)\n• Dark/Light themes\n\nPlease enter your API keys in the settings panel (⚙️) to enable full functionality for all AI models.\n\nLet's chat! 🚀`,
-  timestamp: new Date(),
-  mood: 'excited' as const,
-  model: 'Lagos Oracle System'
-};
-
 export const GEMINI_MODEL_NAME = 'gemini-2.5-flash';
 export const OPENAI_CHAT_MODEL = 'gpt-4o';
 export const OPENAI_IMAGE_MODEL = 'dall-e-3';
@@ -31,7 +22,7 @@ export const CLAUDE_MODEL_NAME = 'claude-3-sonnet-20240229';
 
 export const DEFAULT_PERSONA_KEY: 'default' = 'default';
 
-export const DEFAULT_PERSONAS: Record<PersonaKey | 'default', PersonaInfo> = {
+export const PERSONAS: Record<PersonaKey | 'default', PersonaInfo> = {
   'default': {
     name: 'Lagos Oracle (Default)',
     icon: '🌟',

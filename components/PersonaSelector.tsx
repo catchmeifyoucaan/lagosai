@@ -1,43 +1,33 @@
 
 import React from 'react';
-import { ThemeColors, PersonaInfo } from '../types';
+import { ThemeColors, PersonaKey } from '../types';
+import { PERSONAS, DEFAULT_PERSONA_KEY } from '../constants';
 
 interface PersonaSelectorProps {
   theme: ThemeColors;
-  personas: Record<string, PersonaInfo>;
-  selectedPersonaKey: string;
-  onSelectPersona: (key: string) => void;
-  onClose: () => void;
-  onOpenPersonaManager: () => void;
+  selectedPersonaKey: PersonaKey | 'default';
+  onSelectPersona: (key: PersonaKey | 'default') => void;
+  onClose: () => void; // Added for explicit close, e.g., on selecting a persona
 }
 
 const PersonaSelector: React.FC<PersonaSelectorProps> = ({
   theme,
-  personas,
   selectedPersonaKey,
   onSelectPersona,
-  onClose,
-  onOpenPersonaManager
+  onClose
 }) => {
-  const handleSelect = (key: string) => {
+  const handleSelect = (key: PersonaKey | 'default') => {
     onSelectPersona(key);
-    onClose();
+    onClose(); // Close selector after selection
   };
   return (
     <div className={`${theme.card} border-b p-4 shadow-md`}>
       <div className="max-w-6xl mx-auto space-y-3">
         <div className="flex justify-between items-center">
           <h3 className={`text-lg font-semibold ${theme.primaryAccent}`}>🎭 Choose Your Oracle's Persona</h3>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={onOpenPersonaManager}
-              className="px-3 py-1 text-sm rounded-md bg-cyan-600 text-white hover:bg-cyan-700"
-            >
-              + Create New
-            </button>
-            <button
-              onClick={onClose}
-              className={`${theme.muted} hover:text-red-500 text-sm p-1 rounded-md`}
+           <button
+            onClick={onClose}
+            className={`${theme.muted} hover:text-red-500 text-sm p-1 rounded-md`}
             title="Close Persona Selector"
             aria-label="Close Persona Selector"
           >
@@ -47,7 +37,8 @@ const PersonaSelector: React.FC<PersonaSelectorProps> = ({
       </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          {Object.entries(personas).map(([key, persona]) => {
+          {Object.entries(PERSONAS).map(([keyStr, persona]) => {
+            const key = keyStr as PersonaKey | 'default';
             const isSelected = selectedPersonaKey === key;
             return (
               <button
