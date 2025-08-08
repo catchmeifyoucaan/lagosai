@@ -337,143 +337,6 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSend = useCallback(async (currentInputOverride?: string) => {
-    const query = (typeof currentInputOverride === 'string' ? currentInputOverride : input).trim();
-    if (!query) return;
-
-    const userMessage: Message = { id: Date.now(), type: 'user', content: query, timestamp: new Date() };
-    setMessages(prev => [...prev, userMessage]);
-    if (typeof currentInputOverride !== 'string') {
-        setInput('');
-    }
-    setIsTyping(true);
-
-    const queryType = detectQueryType(query);
-
-    if (queryType === 'visual' || queryType === 'video') {
-      const oracleMessageId = Date.now() + 1;
-      setMessages(prev => [...prev, {
-        id: oracleMessageId,
-        type: 'oracle',
-        content: `🎨 Generating your ${queryType}...`,
-        model: 'Lagos Oracle Creative Engine',
-        timestamp: new Date(),
-        mood: 'helpful',
-        personaKey: selectedPersonaKey
-      }]);
-
-      try {
-        let mediaResult: MediaResult;
-        if (queryType === 'video') {
-          const video = await generateVideoWithVeo(query);
-          mediaResult = { videoUrl: video.uri, model: 'Veo 3', success: true };
-        } else {
-          const image = await generateImageWithImagen(query);
-          mediaResult = { imageUrl: image.generatedImages[0].image.url, model: 'Imagen 4', success: true };
-        }
-        setMessages(prev => prev.map(msg =>
-          msg.id === oracleMessageId ? { ...msg, content: `Here is the ${queryType} you requested.`, media: mediaResult } : msg
-        ));
-      } catch (error) {
-        console.error(`Error during ${queryType} generation:`, error);
-        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-        setMessages(prev => prev.map(msg =>
-          msg.id === oracleMessageId ? { ...msg, content: `⚠️ Sorry, I couldn't generate the ${queryType}. Reason: ${errorMessage}`, mood: 'error' } : msg
-        ));
-      }
-      setIsTyping(false);
-      return;
-    }
-
-    // Standard text-based chat flow
-    let aiToUse = selectedAI === 'auto' ? selectBestAI(query) : selectedAI;
-    const currentPersona = PERSONAS[selectedPersonaKey] || PERSONAS[DEFAULT_PERSONA_KEY];
-    const modelDisplayName = `${AI_MODELS[aiToUse]?.name || 'AI'} (${currentPersona.name.split('(')[0].trim()})`;
-
-    if (aiToUse === 'gemini') {
-      if (!isGeminiClientInitialized()) {
-         const errorMessage = getDemoResponse(query, 'gemini', "Gemini API not configured. Check API key in settings.");
-         setMessages(prev => [...prev, {
-            id: Date.now() +1, type: 'oracle', content: errorMessage,
-            model: `${modelDisplayName} (Error)`, timestamp: new Date(), mood: 'error', personaKey: selectedPersonaKey
-        }]);
-         setIsTyping(false);
-         return;
-      }
-
-      const oracleMessageId = Date.now() + 1;
-      const systemInstruction = getSystemPrompt(detectQueryType(query), selectedPersonaKey);
-
-      setMessages(prev => [...prev, {
-        id: oracleMessageId,
-        type: 'oracle',
-        content: '...',
-        model: modelDisplayName,
-        timestamp: new Date(),
-        mood: 'helpful',
-        personaKey: selectedPersonaKey
-      }]);
-
-      let accumulatedContent = "";
-      let success = true;
-      let finalModelName = modelDisplayName;
-
-      try {
-        const stream = generateGeminiClientResponseStream(query, systemInstruction);
-        for await (const chunk of stream) {
-          const chunkText = chunk.text;
-          if (typeof chunkText === 'string') {
-            accumulatedContent += chunkText;
-            setMessages(prev => prev.map(msg =>
-              msg.id === oracleMessageId ? { ...msg, content: accumulatedContent } : msg
-            ));
-          }
-        }
-      } catch (error) {
-        console.error("Error during Gemini stream:", error);
-        const errMessage = error instanceof Error ? error.message : String(error);
-        accumulatedContent = getDemoResponse(query, 'gemini', errMessage);
-        success = false;
-        finalModelName = `${modelDisplayName} (Error)`;
-      }
-
-      setMessages(prev => prev.map(msg =>
-        msg.id === oracleMessageId ? {
-            ...msg,
-            content: accumulatedContent,
-            mood: success ? 'helpful' : 'error',
-            model: finalModelName
-        } : msg
-      ));
-
-      if (success && soundEnabled && accumulatedContent) {
-        setTimeout(() => speakText(accumulatedContent), 300);
-      }
-      setIsTyping(false);
-      return;
-    }
-
-    // Non-streaming path for OpenAI, Claude
-    const aiResult = await callAI(query, aiToUse, selectedPersonaKey);
-
-    const oracleMessage: Message = {
-      id: Date.now() + 1,
-      type: 'oracle',
-      content: aiResult.content,
-      model: aiResult.model,
-      timestamp: new Date(),
-      mood: aiResult.success ? 'helpful' : 'error',
-      personaKey: selectedPersonaKey
-    };
-
-    setMessages(prev => [...prev, oracleMessage]);
-    setIsTyping(false);
-
-    if (aiResult.success && soundEnabled && aiResult.content) {
-      setTimeout(() => speakText(aiResult.content), 300);
-    }
-  }, [input, selectedAI, selectBestAI, apiStatus, imageStyle, soundEnabled, speakText, apiKeys.openai, selectedPersonaKey, apiKeys.gemini, apiKeys.claude]);
-
   const getDemoResponse = (query: string, modelKey: AIModelKey, errorMessage?: string): string => {
     const personaName = PERSONAS[selectedPersonaKey]?.name.split('(')[0].trim() || "Oracle";
     const modelName = AI_MODELS[modelKey]?.name || "The AI";
@@ -742,22 +605,48 @@ const App: React.FC = () => {
     setMessages(prev => [...prev, userMessage]);
     if (typeof currentInputOverride !== 'string') {
         setInput('');
-        inputRef.current?.focus();
     }
     setIsTyping(true);
 
-    let aiToUse = selectedAI === 'auto' ? selectBestAI(query) : selectedAI;
-    if (!apiStatus[aiToUse] && aiToUse !== 'auto') {
-        const alternativeAI = selectBestAI(query);
-        if (apiStatus[alternativeAI]) {
-            aiToUse = alternativeAI;
+    const queryType = detectQueryType(query);
+
+    if (queryType === 'visual' || queryType === 'video') {
+      const oracleMessageId = Date.now() + 1;
+      setMessages(prev => [...prev, {
+        id: oracleMessageId,
+        type: 'oracle',
+        content: `🎨 Generating your ${queryType}...`,
+        model: 'Lagos Oracle Creative Engine',
+        timestamp: new Date(),
+        mood: 'helpful',
+        personaKey: selectedPersonaKey
+      }]);
+
+      try {
+        let mediaResult: MediaResult;
+        if (queryType === 'video') {
+          const video = await generateVideoWithVeo(query);
+          mediaResult = { videoUrl: video.uri, model: 'Veo 3', success: true };
         } else {
-            const availableModels = (['gemini', 'openai', 'claude'] as AIModelKey[]).filter(k => apiStatus[k]);
-            aiToUse = availableModels.length > 0 ? availableModels[0] : 'gemini';
+          const image = await generateImageWithImagen(query);
+          mediaResult = { imageUrl: image.generatedImages[0].image.url, model: 'Imagen 4', success: true };
         }
+        setMessages(prev => prev.map(msg =>
+          msg.id === oracleMessageId ? { ...msg, content: `Here is the ${queryType} you requested.`, media: mediaResult } : msg
+        ));
+      } catch (error) {
+        console.error(`Error during ${queryType} generation:`, error);
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+        setMessages(prev => prev.map(msg =>
+          msg.id === oracleMessageId ? { ...msg, content: `⚠️ Sorry, I couldn't generate the ${queryType}. Reason: ${errorMessage}`, mood: 'error' } : msg
+        ));
+      }
+      setIsTyping(false);
+      return;
     }
 
-    const isVisualQuery = detectQueryType(query) === 'visual';
+    // Standard text-based chat flow
+    let aiToUse = selectedAI === 'auto' ? selectBestAI(query) : selectedAI;
     const currentPersona = PERSONAS[selectedPersonaKey] || PERSONAS[DEFAULT_PERSONA_KEY];
     const modelDisplayName = `${AI_MODELS[aiToUse]?.name || 'AI'} (${currentPersona.name.split('(')[0].trim()})`;
 
@@ -788,21 +677,15 @@ const App: React.FC = () => {
       let accumulatedContent = "";
       let success = true;
       let finalModelName = modelDisplayName;
-      let imageResultForStream: ImageResult | undefined = undefined;
-
-      // Prioritize image generation if it's a visual query and OpenAI is available
-      if (isVisualQuery && apiStatus.openai) {
-        imageResultForStream = await generateImage(query);
-      }
 
       try {
-        const stream = generateGeminiClientResponseStream(query, systemInstruction); // No imageParts for standard chat
+        const stream = generateGeminiClientResponseStream(query, systemInstruction);
         for await (const chunk of stream) {
           const chunkText = chunk.text;
           if (typeof chunkText === 'string') {
             accumulatedContent += chunkText;
             setMessages(prev => prev.map(msg =>
-              msg.id === oracleMessageId ? { ...msg, content: accumulatedContent, image: imageResultForStream } : msg // Update image here too
+              msg.id === oracleMessageId ? { ...msg, content: accumulatedContent } : msg
             ));
           }
         }
@@ -814,14 +697,12 @@ const App: React.FC = () => {
         finalModelName = `${modelDisplayName} (Error)`;
       }
 
-
       setMessages(prev => prev.map(msg =>
         msg.id === oracleMessageId ? {
             ...msg,
             content: accumulatedContent,
             mood: success ? 'helpful' : 'error',
-            model: finalModelName,
-            image: imageResultForStream // Ensure image is set on final update
+            model: finalModelName
         } : msg
       ));
 
@@ -923,7 +804,7 @@ const App: React.FC = () => {
           messages={messages}
           isTyping={isTyping}
           theme={themeColors}
-          personas={PERSONAS}
+          personas={personas}
           onPromptClick={(prompt) => handleSend(prompt)}
         />
 
