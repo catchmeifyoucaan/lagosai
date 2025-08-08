@@ -66,7 +66,6 @@ const PersonaSelector: React.FC<PersonaSelectorProps> = ({
           Selecting a persona changes the Oracle's style and language. Voice accents depend on browser capabilities.
         </p>
       </div>
-    </div>
   );
 };
 
