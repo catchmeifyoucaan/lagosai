@@ -714,60 +714,24 @@ const App: React.FC = () => {
     }
 
     // Non-streaming path for OpenAI, Claude
-    const results = await Promise.allSettled([
-      callAI(query, aiToUse, selectedPersonaKey),
-      isVisualQuery && aiToUse === 'openai' && apiStatus.openai ? generateImage(query) : Promise.resolve(null)
-    ]);
-
-    const aiResultOutcome = results[0];
-    const imageResultOutcome = results[1];
-
-    let oracleResponseContent: string;
-    let responseModel = modelDisplayName;
-    let responseSuccess = false;
-
-    if (aiResultOutcome.status === 'fulfilled') {
-      oracleResponseContent = aiResultOutcome.value.content;
-      responseModel = aiResultOutcome.value.model;
-      responseSuccess = aiResultOutcome.value.success;
-    } else {
-      const reasonMessage = aiResultOutcome.reason instanceof Error ? aiResultOutcome.reason.message : String(aiResultOutcome.reason);
-      oracleResponseContent = getDemoResponse(query, aiToUse, reasonMessage);
-      responseModel = `${modelDisplayName} (Error)`;
-    }
-
-    let finalImageResult: ImageResult | undefined = undefined;
-    if (imageResultOutcome?.status === 'fulfilled' && imageResultOutcome.value) {
-        finalImageResult = imageResultOutcome.value;
-    } else if (imageResultOutcome?.status === 'rejected') {
-        if (isVisualQuery) {
-             const reasonMessage = imageResultOutcome.reason instanceof Error ? imageResultOutcome.reason.message : String(imageResultOutcome.reason);
-             finalImageResult = {
-                imageUrl: `https://picsum.photos/seed/error_${encodeURIComponent(query)}/512/512`,
-                model: `Image Error: ${reasonMessage.substring(0,30)}...`,
-                success: false,
-            };
-        }
-    }
+    const aiResult = await callAI(query, aiToUse, selectedPersonaKey);
 
     const oracleMessage: Message = {
       id: Date.now() + 1,
       type: 'oracle',
-      content: oracleResponseContent,
-      model: responseModel,
-      image: finalImageResult,
+      content: aiResult.content,
+      model: aiResult.model,
       timestamp: new Date(),
-      mood: responseSuccess ? 'helpful' : 'error',
+      mood: aiResult.success ? 'helpful' : 'error',
       personaKey: selectedPersonaKey
     };
 
     setMessages(prev => [...prev, oracleMessage]);
     setIsTyping(false);
 
-    if (responseSuccess && soundEnabled && oracleResponseContent) {
-      setTimeout(() => speakText(oracleResponseContent), 300);
+    if (aiResult.success && soundEnabled && aiResult.content) {
+      setTimeout(() => speakText(aiResult.content), 300);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input, selectedAI, selectBestAI, apiStatus, imageStyle, soundEnabled, speakText, apiKeys.openai, selectedPersonaKey, apiKeys.gemini, apiKeys.claude]);
 
 
