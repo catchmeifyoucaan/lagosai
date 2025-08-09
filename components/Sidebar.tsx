@@ -13,6 +13,8 @@ interface SidebarProps {
   showLibrary?: boolean;
   toggleSearch?: () => void;
   toggleLibrary?: () => void;
+  onExportLibrary?: () => void;
+  onImportLibrary?: (file: File) => void;
   // We will add more props as we implement the other features
 }
 
@@ -26,8 +28,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   showSearch,
   showLibrary,
   toggleSearch,
-  toggleLibrary
+  toggleLibrary,
+  onExportLibrary,
+  onImportLibrary
 }) => {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   return (
     <div className={`h-screen w-64 ${theme.card} border-r dark:border-gray-700 flex flex-col p-2`}>
       <div className="flex-1 space-y-2">
@@ -58,7 +63,12 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Settings Button */}
-      <div className="mt-auto">
+      <div className="mt-auto space-y-2">
+        <div className="flex items-center gap-2">
+          <button onClick={onExportLibrary} className={`flex-1 p-2 rounded-md text-sm ${theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}>Export</button>
+          <button onClick={() => fileInputRef.current?.click()} className={`flex-1 p-2 rounded-md text-sm ${theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}>Import</button>
+          <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={e => e.target.files && onImportLibrary && onImportLibrary(e.target.files[0])} />
+        </div>
         <button
           onClick={toggleSettings}
           className={`w-full flex items-center gap-2 p-2 rounded-md text-sm ${showSettings ? `bg-cyan-500/20 ${theme.primaryAccent}` : theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}

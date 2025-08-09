@@ -287,6 +287,58 @@ const App: React.FC = () => {
     }
   };
 
+  const exportLibrary = () => {
+    try {
+      const dataStr = JSON.stringify({
+        conversations,
+        currentConversationId,
+        version: 1
+      }, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `lagos-oracle-library-${Date.now()}.json`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Export library failed', e);
+    }
+  };
+
+  const importLibrary = async (file: File) => {
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as { conversations: Conversation[]; currentConversationId?: string };
+      if (!Array.isArray(parsed.conversations)) throw new Error('Invalid file');
+      setConversations(parsed.conversations);
+      try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(parsed.conversations)); } catch {}
+      if (parsed.currentConversationId && parsed.conversations.some(c => c.id === parsed.currentConversationId)) {
+        setCurrentConversationId(parsed.currentConversationId);
+        try { localStorage.setItem(LOCAL_STORAGE_CURRENT_CONV_ID, parsed.currentConversationId); } catch {}
+        const conv = parsed.conversations.find(c => c.id === parsed.currentConversationId)!;
+        const hydrated: Message[] = conv.messages.map(sm => ({ ...sm, timestamp: new Date(sm.timestamp) }));
+        setMessages(hydrated);
+      } else if (parsed.conversations.length) {
+        loadConversation(parsed.conversations[0]);
+      } else {
+        startNewConversation();
+      }
+    } catch (e) {
+      console.error('Import library failed', e);
+    }
+  };
+
+  const renameCurrentConversation = () => {
+    if (!currentConversationId) return;
+    const title = prompt('Rename conversation to:', conversations.find(c => c.id === currentConversationId)?.title || '');
+    if (title == null) return;
+    setConversations(prev => {
+      const updated = prev.map(c => c.id === currentConversationId ? { ...c, title: title.trim() || c.title } : c);
+      try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  };
+
   // Persist messages to the current conversation whenever messages change
   useEffect(() => {
     if (!currentConversationId) return;
@@ -900,6 +952,8 @@ const App: React.FC = () => {
         showLibrary={showLibrary}
         toggleSearch={toggleSearch}
         toggleLibrary={toggleLibrary}
+        onExportLibrary={exportLibrary}
+        onImportLibrary={importLibrary}
       />
       <div className="flex-1 flex flex-col">
         {/* Main chat area */}

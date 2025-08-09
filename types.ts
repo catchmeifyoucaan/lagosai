@@ -55,7 +55,7 @@ export interface AIServiceResponse {
 }
 
 // Persona Types
-export type PersonaKey = 'emeka' | 'femi' | 'anita' | 'muhammed';
+export type PersonaKey = string;
 
 export interface PersonaInfo {
   name: string;
