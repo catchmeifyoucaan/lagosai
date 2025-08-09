@@ -12,7 +12,7 @@ import VisionGuideOverlay from './components/VisionGuideOverlay';
 import Sidebar from './components/Sidebar';
 import LibraryPanel from './components/LibraryPanel';
 import SearchPanel from './components/SearchPanel';
-import Header from './components/Header';
+// Header intentionally not used; controls are in Sidebar
 import { subscribeAuth } from './services/firebase';
 const Onboarding = React.lazy(() => import('./components/Onboarding'));
 const firebaseModule = import('./services/firebase');
@@ -1111,25 +1111,6 @@ const App: React.FC = () => {
         onImportLibrary={importLibrary}
       />
       <div className="flex-1 flex flex-col">
-        <Header
-          theme={themeColors}
-          soundEnabled={soundEnabled}
-          darkMode={darkMode}
-          showSettings={showSettings}
-          selectedAI={selectedAI}
-          selectedPersonaKey={selectedPersonaKey}
-          showPersonaSelector={showPersonaSelector}
-          visionGuideActive={visionGuideActive}
-          toggleSound={() => setSoundEnabled(s => !s)}
-          toggleDarkMode={() => setDarkMode(d => !d)}
-          exportConversation={exportConversation}
-          toggleSettings={toggleSettings}
-          togglePersonaSelector={togglePersonaSelector}
-          toggleVisionGuideMode={toggleVisionGuideMode}
-          onRenameConversation={renameCurrentConversation}
-          onDeleteConversation={() => currentConversationId && deleteConversation(currentConversationId)}
-          onShareConversation={shareCurrentConversation}
-        />
         {/* Main chat area */}
                 <ChatWindow
            messages={messages}
