@@ -21,20 +21,21 @@ const Onboarding: React.FC<OnboardingProps> = ({ theme, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className={`${theme.card} rounded-xl shadow-2xl w-full max-w-2xl`} onClick={e=>e.stopPropagation()}>
-        <div className="p-6 border-b dark:border-gray-700">
-          <h2 className="text-2xl font-bold">Welcome to Lagos Oracle Ultra</h2>
-          <p className={`${theme.muted} mt-2 text-sm`}>Your Lagos-savvy AI for chat, research, images, and more. Explore local culture, get directions, generate visuals, and keep your conversations saved across devices.</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/70" />
+      <div className={`relative w-full max-w-lg mx-auto m-4 sm:m-6 ${theme.card} rounded-2xl shadow-2xl overflow-hidden`}> 
+        <div className="p-6 sm:p-8 border-b dark:border-gray-700">
+          <h2 className="text-2xl sm:text-3xl font-extrabold leading-tight">Welcome to Lagos Oracle Ultra</h2>
+          <p className={`${theme.muted} mt-2 text-sm sm:text-base`}>Your Lagos-savvy AI for chat, research, images, and more. Explore local culture, get directions, generate visuals, and keep your conversations saved across devices.</p>
         </div>
-        <div className="p-6 space-y-3">
+        <div className="p-6 sm:p-8 space-y-3">
           <button disabled={busy} onClick={handleGoogle} className="w-full px-4 py-3 rounded-lg bg-cyan-600 text-white hover:bg-cyan-700 disabled:bg-gray-500">Continue with Google</button>
           <button disabled={busy} onClick={handleApple} className="w-full px-4 py-3 rounded-lg bg-gray-900 text-white hover:bg-black">Continue with Apple</button>
-          <div className="text-center text-xs ${theme.muted}">or</div>
+          <div className={`${theme.muted} text-center text-xs`}>or</div>
           <button disabled={busy} onClick={handleAnon} className="w-full px-4 py-3 rounded-lg border dark:border-gray-700">Try anonymously</button>
         </div>
         <div className="p-4 text-center">
-          <button onClick={onClose} className={`${theme.muted} text-sm hover:underline`}>Maybe later</button>
+          <button disabled={busy} onClick={onClose} className={`${theme.muted} text-sm hover:underline`}>Maybe later</button>
         </div>
       </div>
     </div>
