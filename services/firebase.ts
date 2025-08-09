@@ -2,13 +2,15 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
+const v = (typeof import.meta !== 'undefined' && (import.meta as any).env) || {} as any;
+
 const firebaseConfig = {
-  apiKey: (typeof process !== 'undefined' && (process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY)) || (typeof window !== 'undefined' && (window as any).FIREBASE_API_KEY) || '',
-  authDomain: (typeof process !== 'undefined' && (process.env.VITE_FIREBASE_AUTH_DOMAIN || process.env.FIREBASE_AUTH_DOMAIN)) || (typeof window !== 'undefined' && (window as any).FIREBASE_AUTH_DOMAIN) || '',
-  projectId: (typeof process !== 'undefined' && (process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID)) || (typeof window !== 'undefined' && (window as any).FIREBASE_PROJECT_ID) || '',
-  storageBucket: (typeof process !== 'undefined' && (process.env.VITE_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET)) || (typeof window !== 'undefined' && (window as any).FIREBASE_STORAGE_BUCKET) || '',
-  messagingSenderId: (typeof process !== 'undefined' && (process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || process.env.FIREBASE_MESSAGING_SENDER_ID)) || (typeof window !== 'undefined' && (window as any).FIREBASE_MESSAGING_SENDER_ID) || '',
-  appId: (typeof process !== 'undefined' && (process.env.VITE_FIREBASE_APP_ID || process.env.FIREBASE_APP_ID)) || (typeof window !== 'undefined' && (window as any).FIREBASE_APP_ID) || ''
+  apiKey: v.VITE_FIREBASE_API_KEY || (typeof process !== 'undefined' && ((process as any).env?.VITE_FIREBASE_API_KEY || (process as any).env?.FIREBASE_API_KEY)) || (typeof window !== 'undefined' && (window as any).FIREBASE_API_KEY) || '',
+  authDomain: v.VITE_FIREBASE_AUTH_DOMAIN || (typeof process !== 'undefined' && ((process as any).env?.VITE_FIREBASE_AUTH_DOMAIN || (process as any).env?.FIREBASE_AUTH_DOMAIN)) || (typeof window !== 'undefined' && (window as any).FIREBASE_AUTH_DOMAIN) || '',
+  projectId: v.VITE_FIREBASE_PROJECT_ID || (typeof process !== 'undefined' && ((process as any).env?.VITE_FIREBASE_PROJECT_ID || (process as any).env?.FIREBASE_PROJECT_ID)) || (typeof window !== 'undefined' && (window as any).FIREBASE_PROJECT_ID) || '',
+  storageBucket: v.VITE_FIREBASE_STORAGE_BUCKET || (typeof process !== 'undefined' && ((process as any).env?.VITE_FIREBASE_STORAGE_BUCKET || (process as any).env?.FIREBASE_STORAGE_BUCKET)) || (typeof window !== 'undefined' && (window as any).FIREBASE_STORAGE_BUCKET) || '',
+  messagingSenderId: v.VITE_FIREBASE_MESSAGING_SENDER_ID || (typeof process !== 'undefined' && ((process as any).env?.VITE_FIREBASE_MESSAGING_SENDER_ID || (process as any).env?.FIREBASE_MESSAGING_SENDER_ID)) || (typeof window !== 'undefined' && (window as any).FIREBASE_MESSAGING_SENDER_ID) || '',
+  appId: v.VITE_FIREBASE_APP_ID || (typeof process !== 'undefined' && ((process as any).env?.VITE_FIREBASE_APP_ID || (process as any).env?.FIREBASE_APP_ID)) || (typeof window !== 'undefined' && (window as any).FIREBASE_APP_ID) || ''
 };
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
