@@ -764,13 +764,13 @@ const App: React.FC = () => {
       />
       <div className="flex-1 flex flex-col">
         {/* Main chat area */}
-        <ChatWindow
-          messages={messages}
-          isTyping={isTyping}
-          theme={themeColors}
-          personas={personas}
-          onPromptClick={(prompt) => handleSend(prompt)}
-        />
+                <ChatWindow
+           messages={messages}
+           isTyping={isTyping}
+           theme={themeColors}
+           personas={PERSONAS}
+           onPromptClick={(prompt) => handleSend(prompt)}
+         />
 
         <ChatInput
           input={input}
