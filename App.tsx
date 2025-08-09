@@ -15,6 +15,8 @@ import SearchPanel from './components/SearchPanel';
 import Header from './components/Header';
 import Onboarding from './components/Onboarding';
 import { subscribeAuth } from './services/firebase';
+import { db } from './services/firebase';
+import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 
 const getEnvVar = (key: string): string | undefined => {
   const prefixes = ['REACT_APP_', 'VITE_'];
@@ -102,6 +104,8 @@ const App: React.FC = () => {
   });
   const [user, setUser] = useState<any | null>(null);
   const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
+  const lastSyncedMessagesRef = React.useRef<string>('');
+  const saveTimerRef = React.useRef<number | null>(null);
 
   // Vision Guide State
   const [visionGuideActive, setVisionGuideActive] = useState(false);
@@ -152,6 +156,78 @@ const App: React.FC = () => {
     });
     return () => unsub();
   }, []);
+
+  // Firestore realtime sync for conversations when authenticated
+  useEffect(() => {
+    if (!user) return;
+    const uid = user.uid as string;
+    const convsCol = collection(db, 'users', uid, 'conversations');
+    const metaDoc = doc(db, 'users', uid, 'meta');
+
+    let initialLoaded = false;
+
+    const unsubConvs = onSnapshot(convsCol, async (snapshot) => {
+      const remoteConvs: Conversation[] = snapshot.docs.map(ds => {
+        const d = ds.data() as any;
+        return {
+          id: ds.id,
+          title: d.title || 'New chat',
+          timestamp: d.timestamp || new Date().toISOString(),
+          personaKey: d.personaKey || selectedPersonaKey,
+          messages: Array.isArray(d.messages) ? d.messages : []
+        };
+      }).sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+
+      // If first load and no remote data, migrate local to remote (one-time)
+      if (!initialLoaded) {
+        initialLoaded = true;
+        if (remoteConvs.length === 0 && conversations.length > 0) {
+          // migrate local conversations to Firestore
+          for (const c of conversations) {
+            await setDoc(doc(db, 'users', uid, 'conversations', c.id), {
+              title: c.title,
+              timestamp: c.timestamp,
+              personaKey: c.personaKey,
+              messages: c.messages,
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+          }
+          await setDoc(metaDoc, { currentConversationId: currentConversationId || conversations[0]?.id || null }, { merge: true });
+          return; // wait for next snapshot after migration
+        }
+      }
+
+      setConversations(remoteConvs);
+      try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(remoteConvs)); } catch {}
+
+      // Hydrate current conversation messages from remote
+      const activeId = currentConversationId || remoteConvs[0]?.id || null;
+      if (activeId) {
+        const active = remoteConvs.find(c => c.id === activeId);
+        if (active) {
+          const json = JSON.stringify(active.messages || []);
+          lastSyncedMessagesRef.current = json;
+          const hydrated: Message[] = (active.messages || []).map(sm => ({ ...sm, timestamp: new Date(sm.timestamp) }));
+          setMessages(hydrated);
+          if (currentConversationId !== activeId) {
+            setCurrentConversationId(activeId);
+            try { localStorage.setItem(LOCAL_STORAGE_CURRENT_CONV_ID, activeId); } catch {}
+          }
+        }
+      }
+    });
+
+    const unsubMeta = onSnapshot(metaDoc, (ds) => {
+      const d = ds.data() as any;
+      if (d && d.currentConversationId && d.currentConversationId !== currentConversationId) {
+        setCurrentConversationId(d.currentConversationId);
+        try { localStorage.setItem(LOCAL_STORAGE_CURRENT_CONV_ID, d.currentConversationId); } catch {}
+      }
+    });
+
+    return () => { unsubConvs(); unsubMeta(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   // Ensure there is a current conversation on first load
   useEffect(() => {
@@ -280,6 +356,14 @@ const App: React.FC = () => {
     setCurrentConversationId(newId);
     try { localStorage.setItem(LOCAL_STORAGE_CURRENT_CONV_ID, newId); } catch {}
     setMessages([]);
+    // Firestore
+    if (user) {
+      const uid = user.uid as string;
+      setDoc(doc(db, 'users', uid, 'conversations', newId), {
+        title: 'New chat', timestamp: new Date().toISOString(), personaKey: selectedPersonaKey, messages: [], updatedAt: serverTimestamp()
+      }, { merge: true });
+      setDoc(doc(db, 'users', uid, 'meta'), { currentConversationId: newId }, { merge: true });
+    }
   };
 
   const loadConversation = (conv: Conversation) => {
@@ -289,6 +373,10 @@ const App: React.FC = () => {
     setMessages(hydrated);
     setShowLibrary(false);
     setShowSearch(false);
+    if (user) {
+      const uid = user.uid as string;
+      setDoc(doc(db, 'users', uid, 'meta'), { currentConversationId: conv.id }, { merge: true });
+    }
   };
 
   const deleteConversation = (conversationId: string) => {
@@ -299,6 +387,10 @@ const App: React.FC = () => {
     });
     if (currentConversationId === conversationId) {
       startNewConversation();
+    }
+    if (user) {
+      const uid = user.uid as string;
+      deleteDoc(doc(db, 'users', uid, 'conversations', conversationId)).catch(()=>{});
     }
   };
 
@@ -352,6 +444,10 @@ const App: React.FC = () => {
       try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {}
       return updated;
     });
+    if (user) {
+      const uid = user.uid as string;
+      updateDoc(doc(db, 'users', uid, 'conversations', currentConversationId), { title: title.trim() || 'New chat', updatedAt: serverTimestamp() }).catch(()=>{});
+    }
   };
 
   // Persist messages to the current conversation whenever messages change
@@ -368,6 +464,26 @@ const App: React.FC = () => {
       try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {}
       return updated;
     });
+    // Firestore debounced write
+    if (user) {
+      const uid = user.uid as string;
+      const storedMessages: StoredMessage[] = messages.map(m => ({ ...m, timestamp: m.timestamp.toISOString() }));
+      const json = JSON.stringify(storedMessages);
+      if (json === lastSyncedMessagesRef.current) return;
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = window.setTimeout(() => {
+        setDoc(doc(db, 'users', uid, 'conversations', currentConversationId), {
+          title: messages.find(m => m.type === 'user')?.content?.slice(0, 60) || 'New chat',
+          timestamp: new Date().toISOString(),
+          personaKey: selectedPersonaKey,
+          messages: storedMessages,
+          updatedAt: serverTimestamp()
+        }, { merge: true }).then(() => {
+          lastSyncedMessagesRef.current = json;
+          setDoc(doc(db, 'users', uid, 'meta'), { currentConversationId }, { merge: true }).catch(()=>{});
+        }).catch(()=>{});
+      }, 800);
+    }
   }, [messages, currentConversationId, selectedPersonaKey]);
 
   const detectQueryType = (query: string): 'visual' | 'video' | 'location' | 'general' | 'sensitive_discussion' => {
