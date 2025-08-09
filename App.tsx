@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Message, AIModelKey, ImageStyleKey, ApiKeys, ApiStatus, ThemeColors, AIServiceResponse, MediaResult, PersonaKey, ImagePart } from './types';
+import { Message, AIModelKey, ImageStyleKey, ApiKeys, ApiStatus, ThemeColors, AIServiceResponse, MediaResult, PersonaKey, ImagePart, Conversation, StoredMessage } from './types';
 import { AI_MODELS, IMAGE_STYLES, OPENAI_CHAT_MODEL, OPENAI_IMAGE_MODEL, CLAUDE_MODEL_NAME, PERSONAS, DEFAULT_PERSONA_KEY, GEMINI_MODEL_NAME } from './constants';
 import { initializeGeminiClient, isGeminiClientInitialized, generateGeminiClientResponse, generateGeminiClientResponseStream, generateImageWithImagen, generateVideoWithVeo } from './services/geminiService';
 
@@ -10,6 +10,8 @@ import ChatInput from './components/ChatInput';
 import PersonaSelector from './components/PersonaSelector';
 import VisionGuideOverlay from './components/VisionGuideOverlay';
 import Sidebar from './components/Sidebar';
+import LibraryPanel from './components/LibraryPanel';
+import SearchPanel from './components/SearchPanel';
 
 const getEnvVar = (key: string): string | undefined => {
   const prefixes = ['REACT_APP_', 'VITE_'];
@@ -38,6 +40,8 @@ const LOCAL_STORAGE_API_KEYS = 'lagosOracleApiKeys_v2';
 const LOCAL_STORAGE_DARK_MODE = 'darkModeLagosOracle';
 const LOCAL_STORAGE_SOUND_ENABLED = 'soundEnabledLagosOracle';
 const LOCAL_STORAGE_SELECTED_PERSONA = 'selectedPersonaLagosOracle_v1';
+const LOCAL_STORAGE_CONVERSATIONS = 'lagosOracleConversations_v1';
+const LOCAL_STORAGE_CURRENT_CONV_ID = 'lagosOracleCurrentConversationId_v1';
 
 
 const App: React.FC = () => {
@@ -79,6 +83,20 @@ const App: React.FC = () => {
   });
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
+
+  const [conversations, setConversations] = useState<Conversation[]>(() => {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_CONVERSATIONS);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as Conversation[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  });
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(() => {
+    try { return localStorage.getItem(LOCAL_STORAGE_CURRENT_CONV_ID); } catch { return null; }
+  });
 
   // Vision Guide State
   const [visionGuideActive, setVisionGuideActive] = useState(false);
@@ -119,6 +137,49 @@ const App: React.FC = () => {
     setApiKeys(initialApiKeys);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Ensure there is a current conversation on first load
+  useEffect(() => {
+    if (!currentConversationId) {
+      const newId = `${Date.now()}`;
+      const newConv: Conversation = {
+        id: newId,
+        title: 'New chat',
+        timestamp: new Date().toISOString(),
+        personaKey: selectedPersonaKey,
+        messages: []
+      };
+      setConversations(prev => {
+        const updated = [newConv, ...prev];
+        try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {}
+        return updated;
+      });
+      setCurrentConversationId(newId);
+      try { localStorage.setItem(LOCAL_STORAGE_CURRENT_CONV_ID, newId); } catch {}
+      setMessages([]);
+    } else {
+      const conv = conversations.find(c => c.id === currentConversationId);
+      if (conv) {
+        // hydrate messages
+        const hydrated: Message[] = conv.messages.map(sm => ({
+          ...sm,
+          timestamp: new Date(sm.timestamp)
+        }));
+        setMessages(hydrated);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Update current conversation persona if persona changes
+  useEffect(() => {
+    if (!currentConversationId) return;
+    setConversations(prev => {
+      const updated = prev.map(c => c.id === currentConversationId ? { ...c, personaKey: selectedPersonaKey } : c);
+      try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  }, [selectedPersonaKey, currentConversationId]);
 
   useEffect(() => {
     try { localStorage.setItem(LOCAL_STORAGE_DARK_MODE, JSON.stringify(darkMode)); } catch(e){ console.error("Failed to save dark mode to localStorage", e)}
@@ -162,12 +223,85 @@ const App: React.FC = () => {
   const toggleSettings = () => {
     setShowSettings(s => !s);
     setShowPersonaSelector(false);
+    setShowSearch(false);
+    setShowLibrary(false);
   };
 
   const togglePersonaSelector = () => {
     setShowPersonaSelector(s => !s);
     setShowSettings(false);
+    setShowSearch(false);
+    setShowLibrary(false);
   };
+
+  const toggleSearch = () => {
+    setShowSearch(s => !s);
+    setShowSettings(false);
+    setShowPersonaSelector(false);
+    setShowLibrary(false);
+  };
+
+  const toggleLibrary = () => {
+    setShowLibrary(s => !s);
+    setShowSettings(false);
+    setShowPersonaSelector(false);
+    setShowSearch(false);
+  };
+
+  const startNewConversation = () => {
+    const newId = `${Date.now()}`;
+    const newConv: Conversation = {
+      id: newId,
+      title: 'New chat',
+      timestamp: new Date().toISOString(),
+      personaKey: selectedPersonaKey,
+      messages: []
+    };
+    setConversations(prev => {
+      const updated = [newConv, ...prev];
+      try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    setCurrentConversationId(newId);
+    try { localStorage.setItem(LOCAL_STORAGE_CURRENT_CONV_ID, newId); } catch {}
+    setMessages([]);
+  };
+
+  const loadConversation = (conv: Conversation) => {
+    setCurrentConversationId(conv.id);
+    try { localStorage.setItem(LOCAL_STORAGE_CURRENT_CONV_ID, conv.id); } catch {}
+    const hydrated: Message[] = conv.messages.map(sm => ({ ...sm, timestamp: new Date(sm.timestamp) }));
+    setMessages(hydrated);
+    setShowLibrary(false);
+    setShowSearch(false);
+  };
+
+  const deleteConversation = (conversationId: string) => {
+    setConversations(prev => {
+      const updated = prev.filter(c => c.id !== conversationId);
+      try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    if (currentConversationId === conversationId) {
+      startNewConversation();
+    }
+  };
+
+  // Persist messages to the current conversation whenever messages change
+  useEffect(() => {
+    if (!currentConversationId) return;
+    setConversations(prev => {
+      const idx = prev.findIndex(c => c.id === currentConversationId);
+      if (idx === -1) return prev;
+      const title = messages.find(m => m.type === 'user')?.content?.slice(0, 60) || 'New chat';
+      const storedMessages: StoredMessage[] = messages.map(m => ({ ...m, timestamp: m.timestamp.toISOString() }));
+      const updatedConv: Conversation = { ...prev[idx], title, messages: storedMessages, timestamp: prev[idx].timestamp || new Date().toISOString(), personaKey: selectedPersonaKey };
+      const updated = [...prev];
+      updated[idx] = updatedConv;
+      try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  }, [messages, currentConversationId, selectedPersonaKey]);
 
   const detectQueryType = (query: string): 'visual' | 'video' | 'location' | 'general' | 'sensitive_discussion' => {
     const q = query.toLowerCase();
@@ -761,6 +895,11 @@ const App: React.FC = () => {
         toggleSettings={toggleSettings}
         showPersonaSelector={showPersonaSelector}
         togglePersonaSelector={togglePersonaSelector}
+        onNewChat={startNewConversation}
+        showSearch={showSearch}
+        showLibrary={showLibrary}
+        toggleSearch={toggleSearch}
+        toggleLibrary={toggleLibrary}
       />
       <div className="flex-1 flex flex-col">
         {/* Main chat area */}
@@ -810,6 +949,26 @@ const App: React.FC = () => {
             selectedPersonaKey={selectedPersonaKey}
             onSelectPersona={setSelectedPersonaKey}
             onClose={() => setShowPersonaSelector(false)}
+          />
+        )}
+
+        {showLibrary && (
+          <LibraryPanel
+            theme={themeColors}
+            conversations={conversations}
+            onLoad={loadConversation}
+            onDelete={deleteConversation}
+            onClose={() => setShowLibrary(false)}
+          />
+        )}
+
+        {showSearch && (
+          <SearchPanel
+            theme={themeColors}
+            conversations={conversations}
+            currentMessages={messages}
+            onOpenConversation={loadConversation}
+            onClose={() => setShowSearch(false)}
           />
         )}
 
