@@ -1095,7 +1095,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className={`flex h-screen ${themeColors.bg} ${themeColors.text} transition-colors duration-300 font-sans`}>
+    <div className={`flex h-screen ${themeColors.bg} ${themeColors.text} transition-colors duration-300 font-sans overflow-hidden`}>
       <Sidebar
         theme={themeColors}
         showSettings={showSettings}
@@ -1110,7 +1110,7 @@ const App: React.FC = () => {
         onExportLibrary={exportLibrary}
         onImportLibrary={importLibrary}
       />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col">
         {/* Main chat area */}
                 <ChatWindow
            messages={messages}
