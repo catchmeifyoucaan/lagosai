@@ -108,44 +108,12 @@ const App: React.FC = () => {
   const lastSyncedMessagesRef = React.useRef<string>('');
   const saveTimerRef = React.useRef<number | null>(null);
 
-  // Vision Guide State
-  const [visionGuideActive, setVisionGuideActive] = useState(false);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const [isAnalyzingFrame, setIsAnalyzingFrame] = useState(false);
-  const videoElementRef = useRef<HTMLVideoElement>(null);
-  const canvasElementRef = useRef<HTMLCanvasElement>(null);
-
-
   useEffect(() => {
-    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognitionAPI) {
-      const recog = new SpeechRecognitionAPI();
-      recog.continuous = false; recog.lang = 'en-US'; recog.interimResults = false;
-      setSpeechRecognition(recog);
-    } else {
-      console.warn("Speech Recognition API not available.");
-    }
-
-    let initialApiKeys: ApiKeys = {
-        openai: (getEnvVar('OPENAI_API_KEY') || '').trim(),
-        gemini: (getEnvVar('GEMINI_API_KEY') || getEnvVar('API_KEY') || '').trim(),
-        claude: (getEnvVar('CLAUDE_API_KEY') || '').trim()
-    };
+    // If a persisted Firebase user already exists (e.g., after redirect), close onboarding early
     try {
-        const savedApiKeysString = localStorage.getItem(LOCAL_STORAGE_API_KEYS);
-        if (savedApiKeysString) {
-            const savedApiKeys = JSON.parse(savedApiKeysString) as Partial<ApiKeys>;
-            initialApiKeys = {
-                openai: (savedApiKeys.openai || initialApiKeys.openai).trim(),
-                gemini: (savedApiKeys.gemini || initialApiKeys.gemini).trim(),
-                claude: (savedApiKeys.claude || initialApiKeys.claude).trim(),
-            };
-        }
-    } catch (error) {
-        console.error("Failed to parse saved API keys from localStorage.", error);
-    }
-    setApiKeys(initialApiKeys);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      const hasAuth = !!(window.localStorage.getItem('firebase:authUser') || window.localStorage.getItem('firebase:AuthUser'));
+      if (hasAuth) setShowOnboarding(false);
+    } catch {}
   }, []);
 
   // Auth listener
