@@ -8,9 +8,10 @@ interface LibraryPanelProps {
   onLoad: (conversation: Conversation) => void;
   onDelete: (conversationId: string) => void;
   onClose: () => void;
+  onRename?: (conversationId: string) => void;
 }
 
-const LibraryPanel: React.FC<LibraryPanelProps> = ({ theme, conversations, onLoad, onDelete, onClose }) => {
+const LibraryPanel: React.FC<LibraryPanelProps> = ({ theme, conversations, onLoad, onDelete, onClose, onRename }) => {
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className={`${theme.card} rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col`} onClick={(e) => e.stopPropagation()}>
@@ -26,7 +27,7 @@ const LibraryPanel: React.FC<LibraryPanelProps> = ({ theme, conversations, onLoa
             conversations.map(conv => {
               const mediaThumb = conv.messages.find(m => m.media && (m.media.imageUrl || m.media.videoUrl));
               return (
-                <div key={conv.id} className={`flex items-center justify-between p-3 rounded-lg border dark:border-gray-700 ${theme.card}`}>
+                <div key={conv.id} className={`group flex items-center justify-between p-3 rounded-lg border dark:border-gray-700 ${theme.card}`}>
                   <div className="flex items-center gap-3">
                     {mediaThumb?.media?.imageUrl ? (
                       <img src={mediaThumb.media.imageUrl} alt="Thumb" className="w-12 h-12 rounded object-cover" />
@@ -40,7 +41,8 @@ const LibraryPanel: React.FC<LibraryPanelProps> = ({ theme, conversations, onLoa
                       <div className={`text-xs ${theme.muted}`}>{new Date(conv.timestamp).toLocaleString()} • {conv.messages.length} messages</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => onRename && onRename(conv.id)} className="px-2 py-1 rounded-md text-sm hover:bg-gray-200 dark:hover:bg-gray-700">Rename</button>
                     <button onClick={() => onLoad(conv)} className="px-2 py-1 rounded-md text-sm bg-cyan-600 text-white hover:bg-cyan-700 flex items-center gap-1"><FolderOpen size={14} /> Open</button>
                     <button onClick={() => onDelete(conv.id)} className="px-2 py-1 rounded-md text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-1"><Trash2 size={14} /> Delete</button>
                   </div>

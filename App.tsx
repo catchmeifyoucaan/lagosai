@@ -12,6 +12,9 @@ import VisionGuideOverlay from './components/VisionGuideOverlay';
 import Sidebar from './components/Sidebar';
 import LibraryPanel from './components/LibraryPanel';
 import SearchPanel from './components/SearchPanel';
+import Header from './components/Header';
+import Onboarding from './components/Onboarding';
+import { subscribeAuth } from './services/firebase';
 
 const getEnvVar = (key: string): string | undefined => {
   const prefixes = ['REACT_APP_', 'VITE_'];
@@ -97,6 +100,8 @@ const App: React.FC = () => {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(() => {
     try { return localStorage.getItem(LOCAL_STORAGE_CURRENT_CONV_ID); } catch { return null; }
   });
+  const [user, setUser] = useState<any | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
 
   // Vision Guide State
   const [visionGuideActive, setVisionGuideActive] = useState(false);
@@ -136,6 +141,16 @@ const App: React.FC = () => {
     }
     setApiKeys(initialApiKeys);
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auth listener
+  useEffect(() => {
+    const unsub = subscribeAuth(u => {
+      setUser(u);
+      // Hide onboarding if already signed in
+      setShowOnboarding(!u);
+    });
+    return () => unsub();
   }, []);
 
   // Ensure there is a current conversation on first load
@@ -956,6 +971,24 @@ const App: React.FC = () => {
         onImportLibrary={importLibrary}
       />
       <div className="flex-1 flex flex-col">
+        <Header
+          theme={themeColors}
+          soundEnabled={soundEnabled}
+          darkMode={darkMode}
+          showSettings={showSettings}
+          selectedAI={selectedAI}
+          selectedPersonaKey={selectedPersonaKey}
+          showPersonaSelector={showPersonaSelector}
+          visionGuideActive={visionGuideActive}
+          toggleSound={() => setSoundEnabled(s => !s)}
+          toggleDarkMode={() => setDarkMode(d => !d)}
+          exportConversation={exportConversation}
+          toggleSettings={toggleSettings}
+          togglePersonaSelector={togglePersonaSelector}
+          toggleVisionGuideMode={toggleVisionGuideMode}
+          onRenameConversation={renameCurrentConversation}
+          onDeleteConversation={() => currentConversationId && deleteConversation(currentConversationId)}
+        />
         {/* Main chat area */}
                 <ChatWindow
            messages={messages}
@@ -979,6 +1012,9 @@ const App: React.FC = () => {
         />
 
         {/* Modals and Overlays will go here, potentially managed differently */}
+        {showOnboarding && (
+          <Onboarding theme={themeColors} onClose={() => setShowOnboarding(false)} />
+        )}
         {showSettings && (
           <SettingsPanel
             theme={themeColors}
@@ -1012,6 +1048,7 @@ const App: React.FC = () => {
             conversations={conversations}
             onLoad={loadConversation}
             onDelete={deleteConversation}
+            onRename={(id) => { if (id === currentConversationId) { renameCurrentConversation(); } else { const title = prompt('Rename conversation to:', conversations.find(c=>c.id===id)?.title || ''); if (title!=null) setConversations(prev => { const updated = prev.map(c => c.id === id ? { ...c, title: title.trim() || c.title } : c); try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {} return updated; }); } }}
             onClose={() => setShowLibrary(false)}
           />
         )}
