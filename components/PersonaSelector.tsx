@@ -2,6 +2,8 @@
 import React from 'react';
 import { ThemeColors, PersonaKey } from '../types';
 import { PERSONAS, DEFAULT_PERSONA_KEY } from '../constants';
+import { subscribeAuth, db } from '../services/firebase';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 interface PersonaSelectorProps {
   theme: ThemeColors;
@@ -35,6 +37,16 @@ const PersonaSelector: React.FC<PersonaSelectorProps> = ({
       map[key] = newPersona;
       localStorage.setItem('lagosOracleCustomPersonas_v1', JSON.stringify(map));
     } catch {}
+    // Save to Firestore if logged in
+    subscribeAuth(async (user) => {
+      if (user) {
+        try {
+          const raw = localStorage.getItem('lagosOracleCustomPersonas_v1');
+          const map = raw ? JSON.parse(raw) as Record<string, any> : { [key]: newPersona };
+          await setDoc(doc(db, 'users', user.uid, 'customPersonas', 'all'), map, { merge: true });
+        } catch {}
+      }
+    });
     onSelectPersona(key);
     onClose();
   };
@@ -45,6 +57,24 @@ const PersonaSelector: React.FC<PersonaSelectorProps> = ({
       const map = raw ? JSON.parse(raw) as Record<string, any> : {};
       return { ...PERSONAS, ...map } as Record<PersonaKey | 'default', any>;
     } catch { return PERSONAS as Record<PersonaKey | 'default', any>; }
+  }, []);
+  // Load Firestore custom personas if logged in
+  React.useEffect(() => {
+    const unsub = subscribeAuth(async (user) => {
+      if (user) {
+        try {
+          const ds = await getDoc(doc(db, 'users', user.uid, 'customPersonas', 'all'));
+          if (ds.exists()) {
+            const map = ds.data() as Record<string, any>;
+            const raw = localStorage.getItem('lagosOracleCustomPersonas_v1');
+            const localMap = raw ? JSON.parse(raw) as Record<string, any> : {};
+            const merged = { ...localMap, ...map };
+            localStorage.setItem('lagosOracleCustomPersonas_v1', JSON.stringify(merged));
+          }
+        } catch {}
+      }
+    });
+    return () => { unsub(); };
   }, []);
   const handleSelect = (key: PersonaKey | 'default') => {
     onSelectPersona(key);
