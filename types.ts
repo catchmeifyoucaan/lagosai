@@ -55,7 +55,7 @@ export interface AIServiceResponse {
 }
 
 // Persona Types
-export type PersonaKey = 'emeka' | 'femi' | 'anita' | 'muhammed';
+export type PersonaKey = string;
 
 export interface PersonaInfo {
   name: string;
@@ -79,4 +79,24 @@ declare global {
     webkitSpeechRecognition: any;
     SpeechRecognition: any; 
   }
+}
+
+// Persistence types for saving conversations
+export interface StoredMessage {
+  id: number;
+  type: 'user' | 'oracle';
+  content: string;
+  timestamp: string; // ISO string for persistence
+  model?: string;
+  media?: MediaResult;
+  mood?: 'excited' | 'helpful' | 'demo' | 'error';
+  personaKey?: PersonaKey | 'default';
+}
+
+export interface Conversation {
+  id: string; // uuid or timestamp-based
+  title: string;
+  timestamp: string; // ISO
+  personaKey: PersonaKey | 'default';
+  messages: StoredMessage[];
 }

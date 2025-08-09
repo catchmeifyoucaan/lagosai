@@ -8,6 +8,13 @@ interface SidebarProps {
   showPersonaSelector: boolean;
   toggleSettings: () => void;
   togglePersonaSelector: () => void;
+  onNewChat: () => void;
+  showSearch?: boolean;
+  showLibrary?: boolean;
+  toggleSearch?: () => void;
+  toggleLibrary?: () => void;
+  onExportLibrary?: () => void;
+  onImportLibrary?: (file: File) => void;
   // We will add more props as we implement the other features
 }
 
@@ -16,24 +23,32 @@ const Sidebar: React.FC<SidebarProps> = ({
   showSettings,
   showPersonaSelector,
   toggleSettings,
-  togglePersonaSelector
+  togglePersonaSelector,
+  onNewChat,
+  showSearch,
+  showLibrary,
+  toggleSearch,
+  toggleLibrary,
+  onExportLibrary,
+  onImportLibrary
 }) => {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   return (
     <div className={`h-screen w-64 ${theme.card} border-r dark:border-gray-700 flex flex-col p-2`}>
       <div className="flex-1 space-y-2">
         {/* New Chat Button */}
-        <button className="w-full flex items-center gap-2 p-2 rounded-md text-sm font-medium bg-cyan-600 text-white hover:bg-cyan-700">
+        <button onClick={onNewChat} className="w-full flex items-center gap-2 p-2 rounded-md text-sm font-medium bg-cyan-600 text-white hover:bg-cyan-700">
           <Plus size={18} />
           New Chat
         </button>
 
         {/* Placeholder Links */}
         <div className="pt-4 space-y-1">
-          <button className={`w-full flex items-center gap-2 p-2 rounded-md text-sm ${theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}>
+          <button onClick={toggleSearch} className={`w-full flex items-center gap-2 p-2 rounded-md text-sm ${showSearch ? `bg-cyan-500/20 ${theme.primaryAccent}` : theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}>
             <Search size={18} />
             Search
           </button>
-          <button className={`w-full flex items-center gap-2 p-2 rounded-md text-sm ${theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}>
+          <button onClick={toggleLibrary} className={`w-full flex items-center gap-2 p-2 rounded-md text-sm ${showLibrary ? `bg-cyan-500/20 ${theme.primaryAccent}` : theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}>
             <Library size={18} />
             Library
           </button>
@@ -48,7 +63,12 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Settings Button */}
-      <div className="mt-auto">
+      <div className="mt-auto space-y-2">
+        <div className="flex items-center gap-2">
+          <button onClick={onExportLibrary} className={`flex-1 p-2 rounded-md text-sm ${theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}>Export</button>
+          <button onClick={() => fileInputRef.current?.click()} className={`flex-1 p-2 rounded-md text-sm ${theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}>Import</button>
+          <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={e => e.target.files && onImportLibrary && onImportLibrary(e.target.files[0])} />
+        </div>
         <button
           onClick={toggleSettings}
           className={`w-full flex items-center gap-2 p-2 rounded-md text-sm ${showSettings ? `bg-cyan-500/20 ${theme.primaryAccent}` : theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}

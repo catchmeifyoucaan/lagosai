@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Message, AIModelKey, ImageStyleKey, ApiKeys, ApiStatus, ThemeColors, AIServiceResponse, MediaResult, PersonaKey, ImagePart } from './types';
+import { Message, AIModelKey, ImageStyleKey, ApiKeys, ApiStatus, ThemeColors, AIServiceResponse, MediaResult, PersonaKey, ImagePart, Conversation, StoredMessage } from './types';
 import { AI_MODELS, IMAGE_STYLES, OPENAI_CHAT_MODEL, OPENAI_IMAGE_MODEL, CLAUDE_MODEL_NAME, PERSONAS, DEFAULT_PERSONA_KEY, GEMINI_MODEL_NAME } from './constants';
 import { initializeGeminiClient, isGeminiClientInitialized, generateGeminiClientResponse, generateGeminiClientResponseStream, generateImageWithImagen, generateVideoWithVeo } from './services/geminiService';
 
@@ -10,6 +10,14 @@ import ChatInput from './components/ChatInput';
 import PersonaSelector from './components/PersonaSelector';
 import VisionGuideOverlay from './components/VisionGuideOverlay';
 import Sidebar from './components/Sidebar';
+import LibraryPanel from './components/LibraryPanel';
+import SearchPanel from './components/SearchPanel';
+import Header from './components/Header';
+import { subscribeAuth } from './services/firebase';
+const Onboarding = React.lazy(() => import('./components/Onboarding'));
+const firebaseModule = import('./services/firebase');
+import { db } from './services/firebase';
+import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 
 const getEnvVar = (key: string): string | undefined => {
   const prefixes = ['REACT_APP_', 'VITE_'];
@@ -38,6 +46,8 @@ const LOCAL_STORAGE_API_KEYS = 'lagosOracleApiKeys_v2';
 const LOCAL_STORAGE_DARK_MODE = 'darkModeLagosOracle';
 const LOCAL_STORAGE_SOUND_ENABLED = 'soundEnabledLagosOracle';
 const LOCAL_STORAGE_SELECTED_PERSONA = 'selectedPersonaLagosOracle_v1';
+const LOCAL_STORAGE_CONVERSATIONS = 'lagosOracleConversations_v1';
+const LOCAL_STORAGE_CURRENT_CONV_ID = 'lagosOracleCurrentConversationId_v1';
 
 
 const App: React.FC = () => {
@@ -79,6 +89,24 @@ const App: React.FC = () => {
   });
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
+
+  const [conversations, setConversations] = useState<Conversation[]>(() => {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_CONVERSATIONS);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as Conversation[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  });
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(() => {
+    try { return localStorage.getItem(LOCAL_STORAGE_CURRENT_CONV_ID); } catch { return null; }
+  });
+  const [user, setUser] = useState<any | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
+  const lastSyncedMessagesRef = React.useRef<string>('');
+  const saveTimerRef = React.useRef<number | null>(null);
 
   // Vision Guide State
   const [visionGuideActive, setVisionGuideActive] = useState(false);
@@ -119,6 +147,131 @@ const App: React.FC = () => {
     setApiKeys(initialApiKeys);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auth listener
+  useEffect(() => {
+    const unsub = subscribeAuth(u => {
+      setUser(u);
+      // Hide onboarding if already signed in
+      setShowOnboarding(!u);
+    });
+    return () => unsub();
+  }, []);
+
+  // Firestore realtime sync for conversations when authenticated
+  useEffect(() => {
+    if (!user) return;
+    const uid = user.uid as string;
+    const convsCol = collection(db, 'users', uid, 'conversations');
+    const metaDoc = doc(db, 'users', uid, 'meta');
+
+    let initialLoaded = false;
+
+    const unsubConvs = onSnapshot(convsCol, async (snapshot) => {
+      const remoteConvs: Conversation[] = snapshot.docs.map(ds => {
+        const d = ds.data() as any;
+        return {
+          id: ds.id,
+          title: d.title || 'New chat',
+          timestamp: d.timestamp || new Date().toISOString(),
+          personaKey: d.personaKey || selectedPersonaKey,
+          messages: Array.isArray(d.messages) ? d.messages : []
+        };
+      }).sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+
+      // If first load and no remote data, migrate local to remote (one-time)
+      if (!initialLoaded) {
+        initialLoaded = true;
+        if (remoteConvs.length === 0 && conversations.length > 0) {
+          // migrate local conversations to Firestore
+          for (const c of conversations) {
+            await setDoc(doc(db, 'users', uid, 'conversations', c.id), {
+              title: c.title,
+              timestamp: c.timestamp,
+              personaKey: c.personaKey,
+              messages: c.messages,
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+          }
+          await setDoc(metaDoc, { currentConversationId: currentConversationId || conversations[0]?.id || null }, { merge: true });
+          return; // wait for next snapshot after migration
+        }
+      }
+
+      setConversations(remoteConvs);
+      try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(remoteConvs)); } catch {}
+
+      // Hydrate current conversation messages from remote
+      const activeId = currentConversationId || remoteConvs[0]?.id || null;
+      if (activeId) {
+        const active = remoteConvs.find(c => c.id === activeId);
+        if (active) {
+          const json = JSON.stringify(active.messages || []);
+          lastSyncedMessagesRef.current = json;
+          const hydrated: Message[] = (active.messages || []).map(sm => ({ ...sm, timestamp: new Date(sm.timestamp) }));
+          setMessages(hydrated);
+          if (currentConversationId !== activeId) {
+            setCurrentConversationId(activeId);
+            try { localStorage.setItem(LOCAL_STORAGE_CURRENT_CONV_ID, activeId); } catch {}
+          }
+        }
+      }
+    });
+
+    const unsubMeta = onSnapshot(metaDoc, (ds) => {
+      const d = ds.data() as any;
+      if (d && d.currentConversationId && d.currentConversationId !== currentConversationId) {
+        setCurrentConversationId(d.currentConversationId);
+        try { localStorage.setItem(LOCAL_STORAGE_CURRENT_CONV_ID, d.currentConversationId); } catch {}
+      }
+    });
+
+    return () => { unsubConvs(); unsubMeta(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Ensure there is a current conversation on first load
+  useEffect(() => {
+    if (!currentConversationId) {
+      const newId = `${Date.now()}`;
+      const newConv: Conversation = {
+        id: newId,
+        title: 'New chat',
+        timestamp: new Date().toISOString(),
+        personaKey: selectedPersonaKey,
+        messages: []
+      };
+      setConversations(prev => {
+        const updated = [newConv, ...prev];
+        try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {}
+        return updated;
+      });
+      setCurrentConversationId(newId);
+      try { localStorage.setItem(LOCAL_STORAGE_CURRENT_CONV_ID, newId); } catch {}
+      setMessages([]);
+    } else {
+      const conv = conversations.find(c => c.id === currentConversationId);
+      if (conv) {
+        // hydrate messages
+        const hydrated: Message[] = conv.messages.map(sm => ({
+          ...sm,
+          timestamp: new Date(sm.timestamp)
+        }));
+        setMessages(hydrated);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Update current conversation persona if persona changes
+  useEffect(() => {
+    if (!currentConversationId) return;
+    setConversations(prev => {
+      const updated = prev.map(c => c.id === currentConversationId ? { ...c, personaKey: selectedPersonaKey } : c);
+      try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  }, [selectedPersonaKey, currentConversationId]);
 
   useEffect(() => {
     try { localStorage.setItem(LOCAL_STORAGE_DARK_MODE, JSON.stringify(darkMode)); } catch(e){ console.error("Failed to save dark mode to localStorage", e)}
@@ -162,12 +315,200 @@ const App: React.FC = () => {
   const toggleSettings = () => {
     setShowSettings(s => !s);
     setShowPersonaSelector(false);
+    setShowSearch(false);
+    setShowLibrary(false);
   };
 
   const togglePersonaSelector = () => {
     setShowPersonaSelector(s => !s);
     setShowSettings(false);
+    setShowSearch(false);
+    setShowLibrary(false);
   };
+
+  const toggleSearch = () => {
+    setShowSearch(s => !s);
+    setShowSettings(false);
+    setShowPersonaSelector(false);
+    setShowLibrary(false);
+  };
+
+  const toggleLibrary = () => {
+    setShowLibrary(s => !s);
+    setShowSettings(false);
+    setShowPersonaSelector(false);
+    setShowSearch(false);
+  };
+
+  const startNewConversation = () => {
+    const newId = `${Date.now()}`;
+    const newConv: Conversation = {
+      id: newId,
+      title: 'New chat',
+      timestamp: new Date().toISOString(),
+      personaKey: selectedPersonaKey,
+      messages: []
+    };
+    setConversations(prev => {
+      const updated = [newConv, ...prev];
+      try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    setCurrentConversationId(newId);
+    try { localStorage.setItem(LOCAL_STORAGE_CURRENT_CONV_ID, newId); } catch {}
+    setMessages([]);
+    // Firestore
+    if (user) {
+      const uid = user.uid as string;
+      setDoc(doc(db, 'users', uid, 'conversations', newId), {
+        title: 'New chat', timestamp: new Date().toISOString(), personaKey: selectedPersonaKey, messages: [], updatedAt: serverTimestamp()
+      }, { merge: true });
+      setDoc(doc(db, 'users', uid, 'meta'), { currentConversationId: newId }, { merge: true });
+    }
+  };
+
+  const loadConversation = (conv: Conversation) => {
+    setCurrentConversationId(conv.id);
+    try { localStorage.setItem(LOCAL_STORAGE_CURRENT_CONV_ID, conv.id); } catch {}
+    const hydrated: Message[] = conv.messages.map(sm => ({ ...sm, timestamp: new Date(sm.timestamp) }));
+    setMessages(hydrated);
+    setShowLibrary(false);
+    setShowSearch(false);
+    if (user) {
+      const uid = user.uid as string;
+      setDoc(doc(db, 'users', uid, 'meta'), { currentConversationId: conv.id }, { merge: true });
+    }
+  };
+
+  const deleteConversation = (conversationId: string) => {
+    setConversations(prev => {
+      const updated = prev.filter(c => c.id !== conversationId);
+      try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    if (currentConversationId === conversationId) {
+      startNewConversation();
+    }
+    if (user) {
+      const uid = user.uid as string;
+      deleteDoc(doc(db, 'users', uid, 'conversations', conversationId)).catch(()=>{});
+    }
+  };
+
+  const exportLibrary = () => {
+    try {
+      const dataStr = JSON.stringify({
+        conversations,
+        currentConversationId,
+        version: 1
+      }, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `lagos-oracle-library-${Date.now()}.json`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Export library failed', e);
+    }
+  };
+
+  const importLibrary = async (file: File) => {
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as { conversations: Conversation[]; currentConversationId?: string };
+      if (!Array.isArray(parsed.conversations)) throw new Error('Invalid file');
+      setConversations(parsed.conversations);
+      try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(parsed.conversations)); } catch {}
+      if (parsed.currentConversationId && parsed.conversations.some(c => c.id === parsed.currentConversationId)) {
+        setCurrentConversationId(parsed.currentConversationId);
+        try { localStorage.setItem(LOCAL_STORAGE_CURRENT_CONV_ID, parsed.currentConversationId); } catch {}
+        const conv = parsed.conversations.find(c => c.id === parsed.currentConversationId)!;
+        const hydrated: Message[] = conv.messages.map(sm => ({ ...sm, timestamp: new Date(sm.timestamp) }));
+        setMessages(hydrated);
+      } else if (parsed.conversations.length) {
+        loadConversation(parsed.conversations[0]);
+      } else {
+        startNewConversation();
+      }
+    } catch (e) {
+      console.error('Import library failed', e);
+    }
+  };
+
+  const renameCurrentConversation = () => {
+    if (!currentConversationId) return;
+    const title = prompt('Rename conversation to:', conversations.find(c => c.id === currentConversationId)?.title || '');
+    if (title == null) return;
+    setConversations(prev => {
+      const updated = prev.map(c => c.id === currentConversationId ? { ...c, title: title.trim() || c.title } : c);
+      try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    if (user) {
+      const uid = user.uid as string;
+      updateDoc(doc(db, 'users', uid, 'conversations', currentConversationId), { title: title.trim() || 'New chat', updatedAt: serverTimestamp() }).catch(()=>{});
+    }
+  };
+
+  const shareCurrentConversation = async () => {
+    if (!currentConversationId) return;
+    try {
+      const conv = conversations.find(c => c.id === currentConversationId);
+      if (!conv) return;
+      const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      const payload = {
+        title: conv.title,
+        timestamp: conv.timestamp,
+        personaKey: conv.personaKey,
+        messages: conv.messages,
+        // read-only snapshot
+      };
+      await setDoc(doc(db, 'shared', token), payload, { merge: true });
+      const url = `${window.location.origin}/#/share/${token}`;
+      await navigator.clipboard.writeText(url);
+      setMessages(prev => [...prev, { id: Date.now(), type: 'oracle', content: `🔗 Share link copied to clipboard:\n${url}`, timestamp: new Date(), mood: 'helpful', model: 'System' }]);
+    } catch (e) {
+      console.error('Share failed', e);
+      setMessages(prev => [...prev, { id: Date.now(), type: 'oracle', content: `⚠️ Failed to create share link.`, timestamp: new Date(), mood: 'error', model: 'System' }]);
+    }
+  };
+
+  // Persist messages to the current conversation whenever messages change
+  useEffect(() => {
+    if (!currentConversationId) return;
+    setConversations(prev => {
+      const idx = prev.findIndex(c => c.id === currentConversationId);
+      if (idx === -1) return prev;
+      const title = messages.find(m => m.type === 'user')?.content?.slice(0, 60) || 'New chat';
+      const storedMessages: StoredMessage[] = messages.map(m => ({ ...m, timestamp: m.timestamp.toISOString() }));
+      const updatedConv: Conversation = { ...prev[idx], title, messages: storedMessages, timestamp: prev[idx].timestamp || new Date().toISOString(), personaKey: selectedPersonaKey };
+      const updated = [...prev];
+      updated[idx] = updatedConv;
+      try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    // Firestore debounced write
+    if (user) {
+      const uid = user.uid as string;
+      const storedMessages: StoredMessage[] = messages.map(m => ({ ...m, timestamp: m.timestamp.toISOString() }));
+      const json = JSON.stringify(storedMessages);
+      if (json === lastSyncedMessagesRef.current) return;
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = window.setTimeout(() => {
+        setDoc(doc(db, 'users', uid, 'conversations', currentConversationId), {
+          title: messages.find(m => m.type === 'user')?.content?.slice(0, 60) || 'New chat',
+          timestamp: new Date().toISOString(),
+          personaKey: selectedPersonaKey,
+          messages: storedMessages,
+          updatedAt: serverTimestamp()
+        }, { merge: true }).then(() => {
+          lastSyncedMessagesRef.current = json;
+          setDoc(doc(db, 'users', uid, 'meta'), { currentConversationId }, { merge: true }).catch(()=>{});
+        }).catch(()=>{});
+      }, 800);
+    }
+  }, [messages, currentConversationId, selectedPersonaKey]);
 
   const detectQueryType = (query: string): 'visual' | 'video' | 'location' | 'general' | 'sensitive_discussion' => {
     const q = query.toLowerCase();
@@ -761,8 +1102,34 @@ const App: React.FC = () => {
         toggleSettings={toggleSettings}
         showPersonaSelector={showPersonaSelector}
         togglePersonaSelector={togglePersonaSelector}
+        onNewChat={startNewConversation}
+        showSearch={showSearch}
+        showLibrary={showLibrary}
+        toggleSearch={toggleSearch}
+        toggleLibrary={toggleLibrary}
+        onExportLibrary={exportLibrary}
+        onImportLibrary={importLibrary}
       />
       <div className="flex-1 flex flex-col">
+        <Header
+          theme={themeColors}
+          soundEnabled={soundEnabled}
+          darkMode={darkMode}
+          showSettings={showSettings}
+          selectedAI={selectedAI}
+          selectedPersonaKey={selectedPersonaKey}
+          showPersonaSelector={showPersonaSelector}
+          visionGuideActive={visionGuideActive}
+          toggleSound={() => setSoundEnabled(s => !s)}
+          toggleDarkMode={() => setDarkMode(d => !d)}
+          exportConversation={exportConversation}
+          toggleSettings={toggleSettings}
+          togglePersonaSelector={togglePersonaSelector}
+          toggleVisionGuideMode={toggleVisionGuideMode}
+          onRenameConversation={renameCurrentConversation}
+          onDeleteConversation={() => currentConversationId && deleteConversation(currentConversationId)}
+          onShareConversation={shareCurrentConversation}
+        />
         {/* Main chat area */}
                 <ChatWindow
            messages={messages}
@@ -786,6 +1153,11 @@ const App: React.FC = () => {
         />
 
         {/* Modals and Overlays will go here, potentially managed differently */}
+        {showOnboarding && (
+          <React.Suspense fallback={null}>
+            <Onboarding theme={themeColors} onClose={() => setShowOnboarding(false)} />
+          </React.Suspense>
+        )}
         {showSettings && (
           <SettingsPanel
             theme={themeColors}
@@ -810,6 +1182,27 @@ const App: React.FC = () => {
             selectedPersonaKey={selectedPersonaKey}
             onSelectPersona={setSelectedPersonaKey}
             onClose={() => setShowPersonaSelector(false)}
+          />
+        )}
+
+        {showLibrary && (
+          <LibraryPanel
+            theme={themeColors}
+            conversations={conversations}
+            onLoad={loadConversation}
+            onDelete={deleteConversation}
+            onRename={(id) => { if (id === currentConversationId) { renameCurrentConversation(); } else { const title = prompt('Rename conversation to:', conversations.find(c=>c.id===id)?.title || ''); if (title!=null) setConversations(prev => { const updated = prev.map(c => c.id === id ? { ...c, title: title.trim() || c.title } : c); try { localStorage.setItem(LOCAL_STORAGE_CONVERSATIONS, JSON.stringify(updated)); } catch {} return updated; }); } }}
+            onClose={() => setShowLibrary(false)}
+          />
+        )}
+
+        {showSearch && (
+          <SearchPanel
+            theme={themeColors}
+            conversations={conversations}
+            currentMessages={messages}
+            onOpenConversation={loadConversation}
+            onClose={() => setShowSearch(false)}
           />
         )}
 

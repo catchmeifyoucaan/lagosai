@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Settings, Volume2, VolumeX, Sun, Moon, Download, Sparkles, Eye, Camera, Users, Drama } from 'lucide-react'; // Added Drama for Persona
+import { Pencil, Share2, Trash2 } from 'lucide-react';
 import { ThemeColors, AIModelKey, AIModelInfo, PersonaKey } from '../types';
 import { AI_MODELS, PERSONAS, DEFAULT_PERSONA_KEY } from '../constants';
 
@@ -19,6 +20,9 @@ interface HeaderProps {
   toggleSettings: () => void;
   togglePersonaSelector: () => void;
   toggleVisionGuideMode: () => void; // New prop
+  onRenameConversation?: () => void;
+  onDeleteConversation?: () => void;
+  onShareConversation?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -35,7 +39,10 @@ const Header: React.FC<HeaderProps> = ({
   exportConversation,
   toggleSettings,
   togglePersonaSelector,
-  toggleVisionGuideMode
+  toggleVisionGuideMode,
+  onRenameConversation,
+  onDeleteConversation,
+  onShareConversation
 }) => {
   const currentAIModelInfo = AI_MODELS[selectedAI] || AI_MODELS['auto'];
   const currentPersonaInfo = PERSONAS[selectedPersonaKey] || PERSONAS[DEFAULT_PERSONA_KEY];
@@ -50,10 +57,17 @@ const Header: React.FC<HeaderProps> = ({
             </div>
             <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse border-2 border-slate-900 dark:border-white"></div>
           </div>
-          <div>
-            <h1 className="text-lg md:text-xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-              Lagos Oracle Ultra
-            </h1>
+          <div className="group">
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg md:text-xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+                Lagos Oracle Ultra
+              </h1>
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                <button onClick={onRenameConversation} className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700`} title="Rename current chat"><Pencil className="w-4 h-4" /></button>
+                <button onClick={onShareConversation} className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700`} title="Share current chat"><Share2 className="w-4 h-4" /></button>
+                <button onClick={onDeleteConversation} className={`p-1 rounded hover:bg-red-500/10 text-red-500`} title="Delete current chat"><Trash2 className="w-4 h-4" /></button>
+              </div>
+            </div>
             <div className="flex items-center space-x-1.5 text-xs">
               <Camera className="w-3 h-3 text-pink-400" />
               <span className={`${currentAIModelInfo.color} font-medium`}>
