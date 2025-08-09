@@ -13,8 +13,9 @@ import Sidebar from './components/Sidebar';
 import LibraryPanel from './components/LibraryPanel';
 import SearchPanel from './components/SearchPanel';
 import Header from './components/Header';
-import Onboarding from './components/Onboarding';
 import { subscribeAuth } from './services/firebase';
+const Onboarding = React.lazy(() => import('./components/Onboarding'));
+const firebaseModule = import('./services/firebase');
 import { db } from './services/firebase';
 import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 
@@ -447,6 +448,29 @@ const App: React.FC = () => {
     if (user) {
       const uid = user.uid as string;
       updateDoc(doc(db, 'users', uid, 'conversations', currentConversationId), { title: title.trim() || 'New chat', updatedAt: serverTimestamp() }).catch(()=>{});
+    }
+  };
+
+  const shareCurrentConversation = async () => {
+    if (!currentConversationId) return;
+    try {
+      const conv = conversations.find(c => c.id === currentConversationId);
+      if (!conv) return;
+      const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      const payload = {
+        title: conv.title,
+        timestamp: conv.timestamp,
+        personaKey: conv.personaKey,
+        messages: conv.messages,
+        // read-only snapshot
+      };
+      await setDoc(doc(db, 'shared', token), payload, { merge: true });
+      const url = `${window.location.origin}/#/share/${token}`;
+      await navigator.clipboard.writeText(url);
+      setMessages(prev => [...prev, { id: Date.now(), type: 'oracle', content: `🔗 Share link copied to clipboard:\n${url}`, timestamp: new Date(), mood: 'helpful', model: 'System' }]);
+    } catch (e) {
+      console.error('Share failed', e);
+      setMessages(prev => [...prev, { id: Date.now(), type: 'oracle', content: `⚠️ Failed to create share link.`, timestamp: new Date(), mood: 'error', model: 'System' }]);
     }
   };
 
@@ -1104,6 +1128,7 @@ const App: React.FC = () => {
           toggleVisionGuideMode={toggleVisionGuideMode}
           onRenameConversation={renameCurrentConversation}
           onDeleteConversation={() => currentConversationId && deleteConversation(currentConversationId)}
+          onShareConversation={shareCurrentConversation}
         />
         {/* Main chat area */}
                 <ChatWindow
@@ -1129,7 +1154,9 @@ const App: React.FC = () => {
 
         {/* Modals and Overlays will go here, potentially managed differently */}
         {showOnboarding && (
-          <Onboarding theme={themeColors} onClose={() => setShowOnboarding(false)} />
+          <React.Suspense fallback={null}>
+            <Onboarding theme={themeColors} onClose={() => setShowOnboarding(false)} />
+          </React.Suspense>
         )}
         {showSettings && (
           <SettingsPanel

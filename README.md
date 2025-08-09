@@ -32,6 +32,11 @@ service cloud.firestore {
       match /customPersonas/{docId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+      // Public read-only shared snapshots
+      match /shared/{token} {
+        allow read: if true; // public readable
+        allow write: if request.auth != null; // only signed-in users can create
+      }
     }
   }
 }

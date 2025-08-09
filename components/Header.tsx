@@ -22,6 +22,7 @@ interface HeaderProps {
   toggleVisionGuideMode: () => void; // New prop
   onRenameConversation?: () => void;
   onDeleteConversation?: () => void;
+  onShareConversation?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -40,7 +41,8 @@ const Header: React.FC<HeaderProps> = ({
   togglePersonaSelector,
   toggleVisionGuideMode,
   onRenameConversation,
-  onDeleteConversation
+  onDeleteConversation,
+  onShareConversation
 }) => {
   const currentAIModelInfo = AI_MODELS[selectedAI] || AI_MODELS['auto'];
   const currentPersonaInfo = PERSONAS[selectedPersonaKey] || PERSONAS[DEFAULT_PERSONA_KEY];
@@ -62,7 +64,7 @@ const Header: React.FC<HeaderProps> = ({
               </h1>
               <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                 <button onClick={onRenameConversation} className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700`} title="Rename current chat"><Pencil className="w-4 h-4" /></button>
-                <button onClick={() => { navigator.clipboard.writeText(window.location.href).catch(()=>{}); }} className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700`} title="Copy share link"><Share2 className="w-4 h-4" /></button>
+                <button onClick={onShareConversation} className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700`} title="Share current chat"><Share2 className="w-4 h-4" /></button>
                 <button onClick={onDeleteConversation} className={`p-1 rounded hover:bg-red-500/10 text-red-500`} title="Delete current chat"><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
