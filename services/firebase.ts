@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged, signOut, type User } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInWithRedirect, signInAnonymously, onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const v = (typeof import.meta !== 'undefined' && (import.meta as any).env) || {} as any;
@@ -18,9 +18,27 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 export const googleProvider = new GoogleAuthProvider();
-export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
 export const appleProvider = new OAuthProvider('apple.com');
-export const signInWithApple = () => signInWithPopup(auth, appleProvider);
+
+const shouldUseRedirect = () => {
+  if (typeof window === 'undefined') return false;
+  const isSmall = window.innerWidth < 640;
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPad|iPhone|iPod/.test(ua);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+  return isSmall || isIOS || isSafari;
+};
+
+export const signInWithGoogle = async () => {
+  if (shouldUseRedirect()) return signInWithRedirect(auth, googleProvider);
+  return signInWithPopup(auth, googleProvider);
+};
+
+export const signInWithApple = async () => {
+  if (shouldUseRedirect()) return signInWithRedirect(auth, appleProvider);
+  return signInWithPopup(auth, appleProvider);
+};
+
 export const signInAnon = () => signInAnonymously(auth);
 export const signOutUser = () => signOut(auth);
 export const subscribeAuth = (cb: (user: User | null) => void) => onAuthStateChanged(auth, cb);
