@@ -138,7 +138,7 @@ const App: React.FC = () => {
     if (!user) return;
     const uid = user.uid as string;
     const convsCol = collection(db, 'users', uid, 'conversations');
-    const metaDoc = doc(db, 'users', uid, 'meta');
+    const metaDoc = doc(db, 'users', uid);
 
     let initialLoaded = false;
 
@@ -338,7 +338,7 @@ const App: React.FC = () => {
       setDoc(doc(db, 'users', uid, 'conversations', newId), {
         title: 'New chat', timestamp: new Date().toISOString(), personaKey: selectedPersonaKey, messages: [], updatedAt: serverTimestamp()
       }, { merge: true });
-      setDoc(doc(db, 'users', uid, 'meta'), { currentConversationId: newId }, { merge: true });
+      setDoc(doc(db, 'users', uid), { currentConversationId: newId }, { merge: true });
     }
   };
 
@@ -351,7 +351,7 @@ const App: React.FC = () => {
     setShowSearch(false);
     if (user) {
       const uid = user.uid as string;
-      setDoc(doc(db, 'users', uid, 'meta'), { currentConversationId: conv.id }, { merge: true });
+      setDoc(doc(db, 'users', uid), { currentConversationId: conv.id }, { merge: true });
     }
   };
 
@@ -479,7 +479,7 @@ const App: React.FC = () => {
           updatedAt: serverTimestamp()
         }, { merge: true }).then(() => {
           lastSyncedMessagesRef.current = json;
-          setDoc(doc(db, 'users', uid, 'meta'), { currentConversationId }, { merge: true }).catch(()=>{});
+          setDoc(doc(db, 'users', uid), { currentConversationId }, { merge: true }).catch(()=>{});
         }).catch(()=>{});
       }, 800);
     }
