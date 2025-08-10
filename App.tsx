@@ -92,6 +92,13 @@ const App: React.FC = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
 
+  // Vision Guide State (needed for camera overlay)
+  const [visionGuideActive, setVisionGuideActive] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [isAnalyzingFrame, setIsAnalyzingFrame] = useState(false);
+  const videoElementRef = useRef<HTMLVideoElement>(null);
+  const canvasElementRef = useRef<HTMLCanvasElement>(null);
+
   const [conversations, setConversations] = useState<Conversation[]>(() => {
     try {
       const raw = localStorage.getItem(LOCAL_STORAGE_CONVERSATIONS);
