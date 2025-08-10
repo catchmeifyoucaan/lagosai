@@ -33,18 +33,14 @@ const Sidebar: React.FC<SidebarProps> = ({
   onImportLibrary
 }) => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [open, setOpen] = React.useState(false);
-  React.useEffect(() => {
-    const onResize = () => { if (window.innerWidth >= 1024) setOpen(true); };
-    onResize();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
+  const [open, setOpen] = React.useState<boolean>(() => (typeof window !== 'undefined' && window.innerWidth >= 1024));
   return (
     <div className={`h-screen ${open ? 'w-64' : 'w-14'} ${theme.card} border-r dark:border-gray-700 flex flex-col p-2 transition-all duration-200`}>
-      <button className={`md:hidden lg:block mb-2 p-2 rounded-md ${theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`} onClick={() => setOpen(o=>!o)} aria-label="Toggle sidebar">
-        {open ? '⟨⟨' : '⟩⟩'}
-      </button>
+      <div className="mb-2">
+        <button className={`p-2 rounded-md ${theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`} onClick={() => setOpen(o=>!o)} aria-label="Toggle sidebar">
+          {open ? '⟨⟨' : '⟩⟩'}
+        </button>
+      </div>
       <div className="flex-1 space-y-2">
         {/* New Chat Button */}
         <button onClick={onNewChat} className={`w-full flex items-center ${open ? 'gap-2' : 'justify-center'} p-2 rounded-md text-sm font-medium bg-cyan-600 text-white hover:bg-cyan-700`}>
