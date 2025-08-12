@@ -36,6 +36,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [open, setOpen] = React.useState<boolean>(() => (typeof window !== 'undefined' && window.innerWidth >= 1024));
   return (
     <div className={`h-screen ${open ? 'w-64' : 'w-14'} ${theme.card} border-r dark:border-gray-700 flex flex-col p-2 transition-all duration-200`}>
+      {/* Brand */}
+      <div className={`flex items-center ${open ? 'justify-start gap-2' : 'justify-center'} mb-2`}>
+        <img src="/logo.png" alt="Logo" className={`${open ? 'w-8 h-8' : 'w-7 h-7'} rounded`} onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none';}} />
+        {open && <span className="text-sm font-semibold">Lagos Oracle</span>}
+      </div>
       <div className="mb-2">
         <button className={`p-2 rounded-md ${theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`} onClick={() => setOpen(o=>!o)} aria-label="Toggle sidebar">
           {open ? '⟨⟨' : '⟩⟩'}
