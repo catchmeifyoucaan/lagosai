@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Message, AIModelKey, ImageStyleKey, ApiKeys, ApiStatus, ThemeColors, AIServiceResponse, MediaResult, PersonaKey, ImagePart, Conversation, StoredMessage } from './types';
 import { AI_MODELS, IMAGE_STYLES, OPENAI_CHAT_MODEL, OPENAI_IMAGE_MODEL, CLAUDE_MODEL_NAME, PERSONAS, DEFAULT_PERSONA_KEY, GEMINI_MODEL_NAME } from './constants';
-import { initializeGeminiClient, isGeminiClientInitialized, generateGeminiClientResponse, generateGeminiClientResponseStream, generateImageWithImagen, generateVideoWithVeo } from './services/geminiService';
+import { initializeGeminiClient, isGeminiClientInitialized, generateGeminiClientResponse, generateGeminiClientResponseStream, generateImageWithGemini, generateVideoWithVeo } from './services/geminiService';
 
 import SettingsPanel from './components/SettingsPanel';
 import ChatWindow from './components/ChatWindow';
@@ -944,8 +944,8 @@ const App: React.FC = () => {
           const video = await generateVideoWithVeo(query);
           mediaResult = { videoUrl: video.uri, model: 'Veo 3', success: true };
         } else {
-          const image = await generateImageWithImagen(query);
-          mediaResult = { imageUrl: image.generatedImages[0].image.url, model: 'Imagen 4', success: true };
+          const image = await generateImageWithGemini(query);
+          mediaResult = { imageUrl: image.dataUrl, model: `${AI_MODELS.gemini.name} Image`, success: true };
         }
         setMessages(prev => prev.map(msg =>
           msg.id === oracleMessageId ? { ...msg, content: `Here is the ${queryType} you requested.`, media: mediaResult } : msg

@@ -175,3 +175,37 @@ export const generateVideoWithVeo = async (prompt: string, image?: any) => {
     throw error;
   }
 };
+
+// Native Gemini image generation (no Imagen). Returns a data URL.
+export const generateImageWithGemini = async (prompt: string): Promise<{ dataUrl: string; mimeType: string; }> => {
+  if (!geminiClient) {
+    throw new Error("Gemini AI SDK not initialized.");
+  }
+  try {
+    const resp = await geminiClient.models.generateContent({
+      model: GEMINI_MODEL_NAME,
+      contents: [{ role: "user", parts: [{ text: prompt }]}],
+      // Ask explicitly for image modality if supported by SDK
+      // The SDK will ignore unknown fields gracefully
+      // @ts-ignore
+      config: { responseModalities: ["IMAGE"], mimeType: "image/png", temperature: 0.8, maxOutputTokens: 1024 }
+    });
+    // Attempt to find an inline image part
+    const parts: any[] = (resp as any)?.candidates?.[0]?.content?.parts || [];
+    const imagePart = parts.find(p => p?.inlineData?.data && p?.inlineData?.mimeType?.startsWith('image/')) || null;
+    if (!imagePart) {
+      // Some models may return image bytes at top-level helpers
+      const topInline = (resp as any)?.inlineData;
+      if (topInline?.data && topInline?.mimeType?.startsWith('image/')) {
+        return { dataUrl: `data:${topInline.mimeType};base64,${topInline.data}`, mimeType: topInline.mimeType };
+      }
+      throw new Error("Gemini did not return an image. Please try a different prompt or check model support.");
+    }
+    const mimeType = imagePart.inlineData.mimeType || 'image/png';
+    const dataUrl = `data:${mimeType};base64,${imagePart.inlineData.data}`;
+    return { dataUrl, mimeType };
+  } catch (error) {
+    console.error("Error generating image with Gemini:", error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+};
