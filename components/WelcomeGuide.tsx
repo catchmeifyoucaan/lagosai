@@ -14,12 +14,17 @@ const WelcomeGuide: React.FC<WelcomeGuideProps> = ({ theme, onPromptClick }) => 
     "Tell me a story about the Eyo festival, but in the style of a wise Igbo elder.",
     "Plan a 3-day tourist itinerary for someone visiting Lagos for the first time."
   ];
+  const [logoError, setLogoError] = React.useState(false);
 
   return (
     <div className="flex flex-col items-center justify-center h-full text-center p-4">
-      <div className="w-20 h-20 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full flex items-center justify-center shadow-lg mb-4">
-        <Sparkles className="w-10 h-10 text-white" />
-      </div>
+      {logoError ? (
+        <div className="w-20 h-20 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full flex items-center justify-center shadow-lg mb-4">
+          <Sparkles className="w-10 h-10 text-white" />
+        </div>
+      ) : (
+        <img src="/logo.png" alt="Logo" className="w-24 h-24 rounded-full object-cover shadow-lg mb-4" onError={() => setLogoError(true)} />
+      )}
       <h1 className={`text-3xl font-bold ${theme.text} mb-2`}>Lagos Oracle</h1>
       <p className={`${theme.muted} mb-8`}>Your AI companion for all things Lagos and beyond.</p>
 
