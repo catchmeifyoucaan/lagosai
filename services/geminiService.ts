@@ -36,8 +36,8 @@ export const generateGeminiClientResponse = async (userQuery: string, systemInst
       contents: [{ role: "user", parts: [{ text: userQuery }] }],
       config: {
         systemInstruction: { role: "system", parts: [{ text: systemInstructionString }] },
-        temperature: 0.8,
-        maxOutputTokens: 2048,
+        temperature: 0.7,
+        maxOutputTokens: 8192,
         safetySettings: [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
             { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -99,8 +99,8 @@ export async function* generateGeminiClientResponseStream(
         contents: [{ role: "user", parts: queryParts }], // Use the constructed parts
         config: {
             systemInstruction: { role: "system", parts: [{ text: systemInstructionString }] },
-            temperature: 0.8,
-            maxOutputTokens: 2048,
+            temperature: 0.7,
+            maxOutputTokens: 8192,
             safetySettings: [
                 { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
                 { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -208,4 +208,25 @@ export const generateImageWithGemini = async (prompt: string): Promise<{ dataUrl
     console.error("Error generating image with Gemini:", error);
     throw error instanceof Error ? error : new Error(String(error));
   }
+};
+
+// SVG Fallback image via Gemini: ask model to output ONLY an <svg> snippet (no markdown)
+export const generateImageSvgWithGemini = async (prompt: string): Promise<{ dataUrl: string; }> => {
+  if (!geminiClient) {
+    throw new Error("Gemini AI SDK not initialized.");
+  }
+  const instruction = `You are to produce a minimal, well-formed SVG image (512x512) that represents the following idea succinctly: "${prompt}".\nStrict rules:\n- Output ONLY the <svg>...</svg> markup, no backticks, no markdown, no explanations.\n- Use simple shapes (rect, circle, path, text) and a pleasing color palette.\n- Ensure width and height are 512 and viewBox is '0 0 512 512'.`;
+  const resp = await geminiClient.models.generateContent({
+    model: GEMINI_MODEL_NAME,
+    contents: [{ role: 'user', parts: [{ text: instruction }]}],
+    // @ts-ignore
+    config: { temperature: 0.5, maxOutputTokens: 2048 }
+  });
+  const text = (resp as any).text || (resp as any)?.candidates?.[0]?.content?.parts?.map((p: any)=>p.text||'').join('') || '';
+  const svg = (text || '').trim();
+  if (!svg.startsWith('<svg')) {
+    throw new Error('Failed to produce SVG.');
+  }
+  const encoded = encodeURIComponent(svg).replace(/%20/g, ' ');
+  return { dataUrl: `data:image/svg+xml;utf8,${encoded}` };
 };

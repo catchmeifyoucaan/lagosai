@@ -944,8 +944,18 @@ const App: React.FC = () => {
           const video = await generateVideoWithVeo(query);
           mediaResult = { videoUrl: video.uri, model: 'Veo 3', success: true };
         } else {
-          const image = await generateImageWithGemini(query);
-          mediaResult = { imageUrl: image.dataUrl, model: `${AI_MODELS.gemini.name} Image`, success: true };
+          try {
+            const image = await generateImageWithGemini(query);
+            mediaResult = { imageUrl: image.dataUrl, model: `${AI_MODELS.gemini.name} Image`, success: true };
+          } catch (err: any) {
+            const msg = (err?.message || '').toLowerCase();
+            if (msg.includes('only supports text output') || msg.includes('did not return an image')) {
+              const svg = await generateImageSvgWithGemini(query);
+              mediaResult = { imageUrl: svg.dataUrl, model: `${AI_MODELS.gemini.name} SVG`, success: true };
+            } else {
+              throw err;
+            }
+          }
         }
         setMessages(prev => prev.map(msg =>
           msg.id === oracleMessageId ? { ...msg, content: `Here is the ${queryType} you requested.`, media: mediaResult } : msg
