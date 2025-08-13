@@ -112,9 +112,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   className={`w-full px-3 py-2 rounded-lg border text-sm ${theme.input} border-gray-300 dark:border-gray-600`} />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Claude API Key</label>
-                <input type="password" placeholder="sk-ant-..." value={apiKeys.claude}
-                  onChange={(e) => updateApiKey('claude', e.target.value)}
+                <label className="block text-sm font-medium mb-1">Perplexity API Key</label>
+                <input type="password" placeholder="ppx_..." value={apiKeys.perplexity}
+                  onChange={(e) => updateApiKey('perplexity', e.target.value)}
                   className={`w-full px-3 py-2 rounded-lg border text-sm ${theme.input} border-gray-300 dark:border-gray-600`} />
               </div>
             </div>

@@ -17,7 +17,7 @@ export interface Message {
   personaKey?: PersonaKey | 'default'; 
 }
 
-export type AIModelKey = 'openai' | 'gemini' | 'claude' | 'auto';
+export type AIModelKey = 'openai' | 'openai_thinking' | 'gemini' | 'perplexity' | 'auto';
 export type ImageStyleKey = 'photorealistic' | 'artistic' | 'cyberpunk' | 'anime';
 
 export interface AIModelInfo {
@@ -29,13 +29,13 @@ export interface AIModelInfo {
 export interface ApiKeys {
   openai: string;
   gemini: string; 
-  claude: string;
+  perplexity: string;
 }
 
 export interface ApiStatus {
   openai: boolean;
   gemini: boolean;
-  claude: boolean;
+  perplexity: boolean;
 }
 
 export interface ThemeColors {
