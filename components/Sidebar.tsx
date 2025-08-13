@@ -1,5 +1,6 @@
 import React from 'react';
 import { Plus, Settings, Search, Library, Drama } from 'lucide-react';
+import { Code } from 'lucide-react';
 import { ThemeColors } from '../types';
 
 interface SidebarProps {
@@ -15,6 +16,7 @@ interface SidebarProps {
   toggleLibrary?: () => void;
   onExportLibrary?: () => void;
   onImportLibrary?: (file: File) => void;
+  onOpenCanvas?: () => void;
   // We will add more props as we implement the other features
 }
 
@@ -30,7 +32,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   toggleSearch,
   toggleLibrary,
   onExportLibrary,
-  onImportLibrary
+  onImportLibrary,
+  onOpenCanvas
 }) => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [open, setOpen] = React.useState<boolean>(() => (typeof window !== 'undefined' && window.innerWidth >= 1024));
@@ -62,6 +65,10 @@ const Sidebar: React.FC<SidebarProps> = ({
           <button onClick={toggleLibrary} className={`w-full flex items-center ${open ? 'gap-2' : 'justify-center'} p-2 rounded-md text-sm ${showLibrary ? `bg-cyan-500/20 ${theme.primaryAccent}` : theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}>
             <Library size={18} />
             {open && 'Library'}
+          </button>
+          <button onClick={onOpenCanvas} className={`w-full flex items-center ${open ? 'gap-2' : 'justify-center'} p-2 rounded-md text-sm ${theme.muted} hover:bg-gray-200 dark:hover:bg-gray-700`}>
+            <Code size={18} />
+            {open && 'Canvas'}
           </button>
           <button
             onClick={togglePersonaSelector}

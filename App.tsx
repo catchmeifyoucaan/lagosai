@@ -12,6 +12,7 @@ import VisionGuideOverlay from './components/VisionGuideOverlay';
 import Sidebar from './components/Sidebar';
 import LibraryPanel from './components/LibraryPanel';
 import SearchPanel from './components/SearchPanel';
+import CanvasPanel from './components/CanvasPanel';
 // Header intentionally not used; controls are in Sidebar
 import { subscribeAuth } from './services/firebase';
 const Onboarding = React.lazy(() => import('./components/Onboarding'));
@@ -91,6 +92,8 @@ const App: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
+  const [showCanvas, setShowCanvas] = useState(false);
+  const [canvasCode, setCanvasCode] = useState<string | undefined>(undefined);
 
   // Vision Guide State (needed for camera overlay)
   const [visionGuideActive, setVisionGuideActive] = useState(false);
@@ -313,6 +316,15 @@ const App: React.FC = () => {
     setShowSettings(false);
     setShowPersonaSelector(false);
     setShowSearch(false);
+    setShowCanvas(false);
+  };
+
+  const toggleCanvas = () => {
+    setShowCanvas(s => !s);
+    setShowSettings(false);
+    setShowPersonaSelector(false);
+    setShowSearch(false);
+    setShowLibrary(false);
   };
 
   const startNewConversation = () => {
@@ -1109,6 +1121,14 @@ const App: React.FC = () => {
         toggleLibrary={toggleLibrary}
         onExportLibrary={exportLibrary}
         onImportLibrary={importLibrary}
+        onOpenCanvas={() => {
+          // Try to seed canvas with the last assistant message if it looks like code
+          const last = [...messages].reverse().find(m => m.type === 'oracle' && typeof m.content === 'string');
+          const text = last?.content || '';
+          const looksLikeHtml = /<html[\s\S]*<\/html>/i.test(text) || /<body[\s\S]*<\/body>/i.test(text) || /<div[\s\S]*>/i.test(text);
+          setCanvasCode(looksLikeHtml ? text : undefined);
+          setShowCanvas(true);
+        }}
       />
       <div className="flex-1 min-w-0 flex flex-col">
         {/* Main chat area */}
@@ -1185,6 +1205,10 @@ const App: React.FC = () => {
             onOpenConversation={loadConversation}
             onClose={() => setShowSearch(false)}
           />
+        )}
+
+        {showCanvas && (
+          <CanvasPanel theme={themeColors} initialCode={canvasCode} onClose={() => setShowCanvas(false)} />
         )}
 
         {visionGuideActive && (
