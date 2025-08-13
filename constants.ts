@@ -3,8 +3,9 @@ import { AIModelKey, ImageStyleKey, AIModelInfo, PersonaKey, PersonaInfo } from 
 
 export const AI_MODELS: Record<AIModelKey, AIModelInfo> = {
   'openai': { name: 'GPT-4o + DALL-E', icon: '🤖', color: 'text-emerald-400' },
+  'openai_thinking': { name: 'GPT-5 Thinking (Math/Deep)', icon: '🧠', color: 'text-cyan-400' },
   'gemini': { name: 'Gemini Flash', icon: '✨', color: 'text-blue-400' },
-  'claude': { name: 'Claude Sonnet', icon: '🧠', color: 'text-purple-400' },
+  'perplexity': { name: 'Perplexity', icon: '🛰️', color: 'text-purple-400' },
   'auto': { name: 'Smart Auto', icon: '⚡', color: 'text-cyan-400' }
 };
 
@@ -17,8 +18,9 @@ export const IMAGE_STYLES: Record<ImageStyleKey, string> = {
 
 export const GEMINI_MODEL_NAME = 'gemini-2.5-flash';
 export const OPENAI_CHAT_MODEL = 'gpt-4o';
+export const OPENAI_THINKING_MODEL = 'o5-preview';
 export const OPENAI_IMAGE_MODEL = 'dall-e-3';
-export const CLAUDE_MODEL_NAME = 'claude-3-sonnet-20240229';
+export const PERPLEXITY_MODEL_NAME = 'sonar-large-online';
 
 export const DEFAULT_PERSONA_KEY: 'default' = 'default';
 

@@ -59,8 +59,8 @@ const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [selectedAI, setSelectedAI] = useState<AIModelKey>('auto');
 
-  const [apiKeys, setApiKeys] = useState<ApiKeys>({ openai: '', gemini: '', claude: '' });
-  const [apiStatus, setApiStatus] = useState<ApiStatus>({ openai: false, gemini: false, claude: false });
+  const [apiKeys, setApiKeys] = useState<ApiKeys>({ openai: '', gemini: '', perplexity: '' });
+  const [apiStatus, setApiStatus] = useState<ApiStatus>({ openai: false, gemini: false, perplexity: false });
 
   const [speechRecognition, setSpeechRecognition] = useState<any | null>(null);
   const recognitionAvailable = !!speechRecognition;
@@ -269,7 +269,7 @@ const App: React.FC = () => {
     setApiStatus({
       openai: !!(apiKeys.openai && (apiKeys.openai.startsWith('sk-') || apiKeys.openai.startsWith('sk-proj-'))),
       gemini: geminiInitialized,
-      claude: !!(apiKeys.claude && (apiKeys.claude.startsWith('sk-ant-') || apiKeys.claude.length > 30))
+      perplexity: !!(apiKeys.perplexity && apiKeys.perplexity.length > 20)
     });
   }, [apiKeys]);
 
@@ -569,11 +569,11 @@ const App: React.FC = () => {
     const type = detectQueryType(query);
     if (apiStatus.gemini && (type !== 'visual' || !apiStatus.openai)) return 'gemini';
     if (apiStatus.openai && (type === 'visual' || !apiStatus.gemini)) return 'openai';
-    if (apiStatus.claude) return 'claude';
+    if (apiStatus.perplexity) return 'perplexity';
 
     if (type === 'visual' && apiKeys.openai) return 'openai';
     if (apiKeys.gemini) return 'gemini';
-    if (apiKeys.claude) return 'claude';
+    if (apiKeys.perplexity) return 'perplexity';
 
     return type === 'visual' ? 'openai' : 'gemini';
   }, [apiStatus, apiKeys]);
@@ -599,7 +599,7 @@ const App: React.FC = () => {
           body: JSON.stringify({
             model: OPENAI_CHAT_MODEL,
             messages: [{ role: 'system', content: systemInstruction }, { role: 'user', content: userQueryForAI }],
-            max_tokens: 1200, temperature: 0.7
+            max_tokens: 2000, temperature: 0.7
           })
         });
         if (!response.ok) {
@@ -613,33 +613,48 @@ const App: React.FC = () => {
         }
         return { content: messageContent, model: `${AI_MODELS.openai.name} (${PERSONAS[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
       }
-
-      if (aiModelKey === 'claude') {
-        if (!apiStatus.claude) throw new Error("Claude API not configured. Check API key in settings.");
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
+      if (aiModelKey === 'openai_thinking') {
+        if (!apiStatus.openai) throw new Error("OpenAI API not configured. Check API key in settings.");
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKeys.claude,
-            'anthropic-version': '2023-06-01'
-          },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKeys.openai}` },
           body: JSON.stringify({
-            model: CLAUDE_MODEL_NAME,
-            system: systemInstruction,
-            messages: [{ role: 'user', content: userQueryForAI }],
-            max_tokens: 1200, temperature: 0.7
+            model: OPENAI_THINKING_MODEL,
+            messages: [{ role: 'system', content: systemInstruction + '\nFocus on mathematical correctness and deep reasoning.' }, { role: 'user', content: userQueryForAI }],
+            max_tokens: 4000, temperature: 0.3
           })
         });
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
-          throw new Error(`Claude API Error: ${response.status} ${errorData.error?.message || response.statusText}`);
+          throw new Error(`OpenAI API Error: ${response.status} ${errorData.error?.message || response.statusText}`);
         }
         const data = await response.json();
-        const textContent = data.content?.[0]?.text;
-         if (typeof textContent !== 'string') {
-            throw new Error("Claude returned invalid or missing content structure.");
+        const messageContent = data.choices?.[0]?.message?.content;
+        if (typeof messageContent !== 'string') throw new Error("OpenAI returned invalid content.");
+        return { content: messageContent, model: `${AI_MODELS.openai_thinking.name} (${PERSONAS[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
+      }
+
+      if (aiModelKey === 'perplexity') {
+        if (!apiStatus.perplexity) throw new Error("Perplexity API not configured. Check API key in settings.");
+        const response = await fetch('https://api.perplexity.ai/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKeys.perplexity}`
+          },
+          body: JSON.stringify({
+            model: PERPLEXITY_MODEL_NAME,
+            messages: [{ role: 'system', content: systemInstruction }, { role: 'user', content: userQueryForAI }]
+          })
+        });
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
+          throw new Error(`Perplexity API Error: ${response.status} ${errorData.error?.message || response.statusText}`);
         }
-        return { content: textContent, model: `${AI_MODELS.claude.name} (${PERSONAS[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
+        const data = await response.json();
+        const messageContent = data.choices?.[0]?.message?.content;
+        if (typeof messageContent !== 'string') throw new Error("Perplexity returned invalid content.");
+        return { content: messageContent, model: `${AI_MODELS.perplexity.name} (${PERSONAS[currentPersonaKey].name.split('(')[0].trim()})`, success: true };
       }
       throw new Error(`AI Model ${aiModelKey} not supported or not properly configured.`);
     } catch (error) {
